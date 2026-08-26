@@ -1,0 +1,15 @@
+# Generated outputs (plots, reconstructed audio)
+outputs/
+
+# Downloaded sample audio
+notebooks/sample_audio.flac
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# OS
+.DS_Store

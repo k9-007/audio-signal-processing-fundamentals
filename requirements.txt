@@ -1,0 +1,10 @@
+numpy>=1.26
+scipy>=1.11
+matplotlib>=3.8
+torch>=2.1
+torchaudio>=2.1
+soundfile>=0.12
+jupyter>=1.0
+ipython>=8.0
+markdown>=3.5
+certifi

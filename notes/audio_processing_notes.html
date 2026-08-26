@@ -1,0 +1,1178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Audio Signal Processing for Deep Learning — Learner Notes</title>
+<script>
+  MathJax = {
+    tex: {
+      inlineMath: [["\\(", "\\)"], ["$", "$"]],
+      displayMath: [["$$", "$$"], ["\\[", "\\]"]]
+    }
+  };
+</script>
+<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #171a23;
+    --surface2: #1e2230;
+    --text: #d7dae2;
+    --muted: #8b91a3;
+    --accent: #7aa2f7;
+    --accent2: #9ece6a;
+    --border: #2a2f3f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.7;
+    font-size: 16.5px;
+  }
+  main {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 48px 28px 120px;
+  }
+  h1 {
+    font-size: 2.1rem;
+    line-height: 1.25;
+    color: #fff;
+    border-bottom: 3px solid var(--accent);
+    padding-bottom: 14px;
+  }
+  h2 {
+    font-size: 1.5rem;
+    color: var(--accent);
+    margin-top: 3.2rem;
+    padding-top: 1.2rem;
+    border-top: 1px solid var(--border);
+  }
+  h3 { font-size: 1.15rem; color: var(--accent2); margin-top: 2rem; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  blockquote {
+    margin: 1.2em 0;
+    padding: 12px 20px;
+    background: var(--surface);
+    border-left: 4px solid var(--accent2);
+    border-radius: 0 8px 8px 0;
+    color: var(--text);
+  }
+  blockquote p { margin: 0.4em 0; }
+  code {
+    font-family: "SF Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.86em;
+    background: var(--surface2);
+    padding: 2px 6px;
+    border-radius: 5px;
+    color: #e0af68;
+  }
+  pre {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 20px;
+    overflow-x: auto;
+    line-height: 1.55;
+  }
+  pre code { background: none; padding: 0; color: #c0caf5; }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 1.4em 0;
+    font-size: 0.94em;
+  }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 9px 14px;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { background: var(--surface2); color: #fff; }
+  tr:nth-child(even) td { background: var(--surface); }
+  hr { border: none; border-top: 1px solid var(--border); margin: 2.5rem 0; }
+  li { margin: 0.3em 0; }
+  strong { color: #fff; }
+  img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 1.4em auto;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: #fff;
+  }
+  .MathJax { color: var(--text); }
+</style>
+</head>
+<body>
+<main>
+<h1 id="audio-signal-processing-for-deep-learning-detailed-learner-notes">Audio Signal Processing for Deep Learning — Detailed Learner Notes</h1>
+<blockquote>
+<p>Companion notes for the video <strong><a href="https://www.youtube.com/watch?v=55QWsm1itKo">Intro to Audio Processing for Deep Learning</a></strong> and the notebook <code>notebooks/intro_to_audio_processing.ipynb</code>.
+These notes go deeper than the video on the concepts that are usually hard the first time: <strong>frequency, the Fourier transform, Nyquist/aliasing, spectrograms, the mel scale, and Griffin-Lim.</strong></p>
+</blockquote>
+<hr />
+<h2 id="table-of-contents">Table of Contents</h2>
+<ol>
+<li><a href="#1-why-audio-pre-processing-matters">Why audio pre-processing matters</a></li>
+<li><a href="#2-sound-as-data-waveforms-and-sampling-rate">Sound as data: waveforms and sampling rate</a></li>
+<li><a href="#3-frequency--the-basics-the-easy-way">Frequency — the basics, the easy way</a></li>
+<li><a href="#4-two-different-per-second-numbers-dont-mix-them-up">Two different "per second" numbers (don't mix them up!)</a></li>
+<li><a href="#5-the-fourier-transform--intuition-first">The Fourier Transform — intuition first</a></li>
+<li><a href="#6-reading-the-fft-output-complex-numbers-magnitude-phase">Reading the FFT output: complex numbers, magnitude, phase</a></li>
+<li><a href="#7-negative-frequencies--why-they-appear-why-we-ignore-them">Negative frequencies — why they appear, why we ignore them</a></li>
+<li><a href="#8-the-nyquistshannon-sampling-theorem">The Nyquist–Shannon sampling theorem</a></li>
+<li><a href="#9-aliasing--the-downsampling-trap-deep-dive">Aliasing — the downsampling trap (deep dive)</a></li>
+<li><a href="#10-sum-of-sinusoids-un-mixing-the-paint">Sum of sinusoids: un-mixing the paint</a></li>
+<li><a href="#11-the-inverse-fourier-transform">The Inverse Fourier Transform</a></li>
+<li><a href="#12-why-the-plain-fourier-transform-is-not-enough-for-speech">Why the plain Fourier transform is not enough for speech</a></li>
+<li><a href="#13-the-short-time-fourier-transform-stft-and-spectrograms--the-easy-way">The Short-Time Fourier Transform (STFT) and Spectrograms — the easy way</a></li>
+<li><a href="#14-the-timefrequency-resolution-trade-off">The time–frequency resolution trade-off</a></li>
+<li><a href="#15-windowing-functions-and-overlap">Windowing functions and overlap</a></li>
+<li><a href="#16-decibel-db-scaling--why-spectrograms-look-black-without-it">Decibel (dB) scaling — why spectrograms look black without it</a></li>
+<li><a href="#17-the-mel-scale-and-mel-spectrograms">The Mel scale and Mel spectrograms</a></li>
+<li><a href="#18-going-backwards-the-phase-problem-and-griffin-lim">Going backwards: the phase problem and Griffin-Lim</a></li>
+<li><a href="#19-neural-vocoders">Neural vocoders</a></li>
+<li><a href="#20-the-full-pipeline--summary-diagram">The full pipeline — summary diagram</a></li>
+<li><a href="#21-torchaudio-cheat-sheet">torchaudio cheat sheet</a></li>
+<li><a href="#22-common-pitfalls-and-quick-self-test">Common pitfalls and quick self-test</a></li>
+<li><a href="#23-parameter--keyword-glossary--what-n_fft-hop_length-etc-actually-mean">Parameter &amp; keyword glossary — what <code>n_fft</code>, <code>hop_length</code>, etc. actually mean</a></li>
+</ol>
+<hr />
+<h2 id="1-why-audio-pre-processing-matters">1. Why audio pre-processing matters</h2>
+<p>Neural networks do not eat <code>.flac</code> or <code>.mp3</code> files. They eat <strong>tensors of numbers</strong>. Everything in this lesson is about the pipeline that converts a recorded sound into a tensor a model can learn from — and (for generative models) how to convert the model's output back into sound you can hear.</p>
+<p>There are two main ways audio is fed to modern models:</p>
+<table>
+<thead>
+<tr>
+<th>Input type</th>
+<th>Example models</th>
+<th>What the model sees</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Raw waveform</strong></td>
+<td>wav2vec 2.0</td>
+<td>A long 1-D array of amplitude samples</td>
+</tr>
+<tr>
+<td><strong>(Mel) spectrogram</strong></td>
+<td>Whisper, DeepSpeech 2, most TTS models, HiFi-GAN</td>
+<td>A 2-D "image" of energy per frequency per time step</td>
+</tr>
+</tbody>
+</table>
+<p>To understand either path, you first need a handful of signal-processing ideas. That is what these notes are for.</p>
+<hr />
+<h2 id="2-sound-as-data-waveforms-and-sampling-rate">2. Sound as data: waveforms and sampling rate</h2>
+<p><strong>Physically</strong>, sound is a pressure wave in air. A microphone measures that air pressure thousands of times per second and stores each measurement as a number.</p>
+<p><strong>Digitally</strong>, an audio file is therefore just a <strong>long list of numbers changing over time</strong> — a time series:</p>
+<pre><code class="language-python">audio, sampling_rate = torchaudio.load(&quot;sample_audio.flac&quot;)
+# audio  -&gt; tensor([[ 0.0012, -0.0034, 0.0051, ...]])   the numbers
+# sampling_rate -&gt; 16000                                  how fast they were captured
+</code></pre>
+<p>Two properties describe every audio signal:</p>
+<ul>
+<li><strong>Sampling rate (samples/second, written Hz)</strong> — how many measurements the microphone took each second. 16,000 Hz means 16,000 numbers per second of audio.</li>
+<li><strong>Duration</strong> — number of samples ÷ sampling rate. An 8-second clip at 16 kHz has 128,000 samples.</li>
+</ul>
+<p>Plotting the raw numbers against time gives the classic <strong>waveform</strong> — amplitude (air pressure) on the y-axis, time on the x-axis. This view is called the <strong>time domain</strong>.</p>
+<p><strong>Typical sampling rates you will meet:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Sampling rate</th>
+<th>Where you see it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>8,000 Hz</td>
+<td>Telephone audio</td>
+</tr>
+<tr>
+<td>16,000 Hz</td>
+<td>Most speech ML models (wav2vec 2.0, Whisper input)</td>
+</tr>
+<tr>
+<td>22,050 Hz</td>
+<td>Many TTS datasets</td>
+</tr>
+<tr>
+<td>44,100 Hz</td>
+<td>CD-quality music, most consumer microphones</td>
+</tr>
+<tr>
+<td>48,000 Hz</td>
+<td>Video / professional audio</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="3-frequency-the-basics-the-easy-way">3. Frequency — the basics, the easy way</h2>
+<p><strong>Frequency = how many times something repeats per second.</strong> Its unit is <strong>Hertz (Hz) = cycles per second</strong>.</p>
+<p>The simplest repeating signal is a <strong>sinusoid</strong> (a sine wave):</p>
+<p>$$y(t) = A \sin(2\pi f t + \varphi)$$</p>
+<p>Break the formula down — every symbol has an everyday meaning:</p>
+<table>
+<thead>
+<tr>
+<th>Symbol</th>
+<th>Name</th>
+<th>Everyday meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>\(A\)</td>
+<td>Amplitude</td>
+<td>How <strong>loud</strong> — the height of the wave</td>
+</tr>
+<tr>
+<td>\(f\)</td>
+<td>Frequency</td>
+<td>How <strong>high-pitched</strong> — cycles completed per second</td>
+</tr>
+<tr>
+<td>\(t\)</td>
+<td>Time</td>
+<td>Where we are on the clock</td>
+</tr>
+<tr>
+<td>\(\varphi\)</td>
+<td>Phase</td>
+<td>Where in its cycle the wave <strong>starts</strong> (a left/right shift)</td>
+</tr>
+<tr>
+<td>\(2\pi\)</td>
+<td>—</td>
+<td>One full circle in radians; \(2\pi f t\) means "complete \(f\) circles per second"</td>
+</tr>
+</tbody>
+</table>
+<p>Concrete examples:</p>
+<ul>
+<li>A <strong>1 Hz</strong> sine wave completes exactly <strong>1 full up-down cycle</strong> in one second.</li>
+<li>A <strong>4 Hz</strong> sine wave completes <strong>4 cycles</strong> in one second — it wiggles faster.</li>
+<li>A <strong>440 Hz</strong> sine wave is the musical note <strong>A4</strong> — the orchestra tuning note.</li>
+</ul>
+<p><strong>Intuition ladder:</strong></p>
+<ul>
+<li>Low frequency → slow wiggle → <strong>deep / bass</strong> sound (a truck engine ~100 Hz)</li>
+<li>High frequency → fast wiggle → <strong>sharp / treble</strong> sound (a whistle ~2,000–4,000 Hz)</li>
+<li>Human hearing range: roughly <strong>20 Hz to 20,000 Hz</strong> (the upper limit drops with age)</li>
+<li>Human <strong>speech</strong> carries most of its useful information below ~8,000 Hz — this is exactly why speech models get away with 16 kHz sampling (see Nyquist, <a href="#8-the-nyquistshannon-sampling-theorem">section 8</a>).</li>
+</ul>
+<p>Here are 1 Hz / 4 Hz / 8 Hz sinusoids side by side (generated by <code>src/fourier_demo.py</code>) — count the cycles in one second:</p>
+<p><img alt="Sinusoids at 1, 4 and 8 Hz" src="../assets/01_sinusoid_basics.png" /></p>
+<hr />
+<h2 id="4-two-different-per-second-numbers-dont-mix-them-up">4. Two different "per second" numbers (don't mix them up!)</h2>
+<p>This is the <strong>single most common beginner confusion</strong>, so it gets its own section.</p>
+<table>
+<thead>
+<tr>
+<th>Concept</th>
+<th>Unit</th>
+<th>Question it answers</th>
+<th>Belongs to</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Sampling rate</strong></td>
+<td>samples/second</td>
+<td><em>How many numbers did the microphone record per second?</em></td>
+<td>The <strong>recording</strong> (the digital file)</td>
+</tr>
+<tr>
+<td><strong>Frequency</strong></td>
+<td>cycles/second (Hz)</td>
+<td><em>How many times does the sound wave itself repeat per second?</em></td>
+<td>The <strong>sound</strong> (the physical wave)</td>
+</tr>
+</tbody>
+</table>
+<p>Analogy: filming a spinning fan.</p>
+<ul>
+<li>The <strong>fan's rotation speed</strong> = frequency (property of the thing being observed).</li>
+<li>The <strong>camera's frames per second</strong> = sampling rate (property of the measurement).</li>
+</ul>
+<p>If the camera films too slowly, the fan can look like it's spinning slowly, backwards, or standing still — that visual illusion <strong>is literally aliasing</strong>, the same phenomenon we will hit in <a href="#9-aliasing--the-downsampling-trap-deep-dive">section 9</a>.</p>
+<p>The two numbers are linked by one rule — the <strong>Nyquist theorem</strong>: a recording at \(f_s\) samples/second can only faithfully contain frequencies up to \(f_s / 2\) cycles/second.</p>
+<hr />
+<h2 id="5-the-fourier-transform-intuition-first">5. The Fourier Transform — intuition first</h2>
+<h3 id="the-paint-mixing-analogy">The paint-mixing analogy</h3>
+<p>Mix blue paint and yellow paint → you get green. Looking at green paint, could you figure out which original colors went into it? With paint, no. With <strong>sound, yes</strong> — and the tool that does it is the <strong>Fourier transform</strong>.</p>
+<blockquote>
+<p><strong>The Fourier transform "un-mixes" a signal: it takes a complicated wave and tells you exactly which pure sine waves (which frequencies), in which amounts, were added together to produce it.</strong></p>
+</blockquote>
+<p>Every sound — a voice, a chord, a dog bark — can be written as a <strong>sum of plain sinusoids</strong> at different frequencies, amplitudes, and phases. That is the deep claim behind Fourier analysis, and it's what makes all of audio ML possible.</p>
+<h3 id="what-it-does-in-plain-words">What it does, in plain words</h3>
+<ul>
+<li><strong>Input:</strong> the waveform — amplitude over <strong>time</strong> (time domain).</li>
+<li><strong>Output:</strong> a list of "how much of each frequency is present" — energy over <strong>frequency</strong> (frequency domain).</li>
+</ul>
+<p>If you feed it a pure 20 Hz sine wave, the output is (almost) all zeros with <strong>one sharp spike at 20 Hz</strong>. The transform found the ingredient:</p>
+<p><img alt="FFT of a pure 20 Hz tone" src="../assets/02_fft_pure_tone.png" /></p>
+<h3 id="how-does-it-actually-find-the-frequencies-gentle-deep-dive">How does it actually find the frequencies? (gentle deep dive)</h3>
+<p>The formula for the Discrete Fourier Transform (DFT) is:</p>
+<p>$$X[k] \;=\; \sum_{n=0}^{N-1} x[n]\; e^{-j 2\pi k n / N}$$</p>
+<p>Don't panic — here is what it <em>means</em>:</p>
+<ol>
+<li>\(e^{-j2\pi kn/N}\) is a <strong>probe wave</strong>: a spinning "reference sinusoid" at frequency \(k\) (Euler's formula says \(e^{j\theta} = \cos\theta + j\sin\theta\), so it packs a cosine and a sine into one object).</li>
+<li>For each candidate frequency \(k\), we <strong>multiply our signal by the probe wave and add everything up</strong>.</li>
+<li>If the signal <strong>contains</strong> frequency \(k\), signal and probe stay in step, the products reinforce each other, and the sum is <strong>large</strong> → big \(X[k]\).</li>
+<li>If the signal <strong>doesn't contain</strong> frequency \(k\), the products oscillate between positive and negative and <strong>cancel to ~zero</strong> → tiny \(X[k]\).</li>
+</ol>
+<p>So the Fourier transform is essentially a <strong>similarity test against every possible frequency</strong>: "Signal, how much do you resemble a 1 Hz wave? A 2 Hz wave? A 3 Hz wave? …" The answers, laid out on an axis, are the <strong>spectrum</strong>.</p>
+<p>In code it's one line — the <strong>FFT</strong> (Fast Fourier Transform, just a fast algorithm for the DFT):</p>
+<pre><code class="language-python">y_fft = np.fft.fft(y)                    # the spectrum (complex numbers)
+freqs = np.fft.fftfreq(len(t), d=t[1]-t[0])  # which frequency each entry corresponds to
+</code></pre>
+<blockquote>
+<p><strong>Highly recommended:</strong> the <a href="https://youtu.be/spUNpyF58BY">3Blue1Brown video on the Fourier Transform</a> — the best visual explanation in existence.</p>
+</blockquote>
+<hr />
+<h2 id="6-reading-the-fft-output-complex-numbers-magnitude-phase">6. Reading the FFT output: complex numbers, magnitude, phase</h2>
+<p><code>np.fft.fft</code> returns <strong>complex numbers</strong> of the form \(a + bj\). Each one carries <strong>two</strong> pieces of information about one frequency:</p>
+<table>
+<thead>
+<tr>
+<th>Quantity</th>
+<th>Formula</th>
+<th>Meaning</th>
+<th>Do we usually use it?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Magnitude</strong></td>
+<td>\(\lvert X \rvert = \sqrt{a^2 + b^2}\) → <code>np.abs(X)</code></td>
+<td><strong>How much energy</strong> (how loud) that frequency is</td>
+<td>✅ Almost always</td>
+</tr>
+<tr>
+<td><strong>Phase</strong></td>
+<td>\(\angle X = \arctan(b/a)\) → <code>np.angle(X)</code></td>
+<td><strong>Where in its cycle</strong> that frequency starts (its time shift)</td>
+<td>⚠️ Ignored for analysis — but see <a href="#18-going-backwards-the-phase-problem-and-griffin-lim">section 18</a>!</td>
+</tr>
+</tbody>
+</table>
+<p>Why complex numbers at all? A sinusoid ingredient needs both <em>"how strong"</em> <strong>and</strong> <em>"how shifted"</em> to be fully described. One complex number stores both compactly: its length is the strength, its angle is the shift.</p>
+<p><strong>Mental model:</strong> every frequency ingredient is an arrow. Arrow <strong>length</strong> = loudness of that frequency. Arrow <strong>direction</strong> = where that wave starts in its cycle. The FFT hands you one arrow per frequency.</p>
+<p>When we "plot the FFT", we almost always plot <code>np.abs(y_fft)</code> — the <strong>magnitude spectrum</strong>. Throwing away phase is fine for <em>analysis</em> (what frequencies are present) but becomes a real problem for <em>reconstruction</em> (turning a spectrogram back into audio) — that's the Griffin-Lim story later.</p>
+<hr />
+<h2 id="7-negative-frequencies-why-they-appear-why-we-ignore-them">7. Negative frequencies — why they appear, why we ignore them</h2>
+<p>Plot the raw FFT of a real signal and you'll see the spectrum is <strong>mirrored</strong>: a spike at +20 Hz and an identical one at −20 Hz.</p>
+<p><strong>Why:</strong> for any <strong>real-valued</strong> input (all audio is real-valued), the FFT output is <em>conjugate-symmetric</em> — every positive frequency comes paired with a negative twin carrying <strong>exactly the same magnitude information</strong>. It's a mathematical bookkeeping artifact of using complex exponentials to represent real waves: you need a "counter-spinning" partner so the imaginary parts cancel.</p>
+<p><strong>Practical consequence:</strong> the second half of the FFT output is redundant. We keep only the first half:</p>
+<pre><code class="language-python">half = len(freqs) // 2
+plt.plot(freqs[:half], np.abs(y_fft)[:half])   # positive frequencies only
+</code></pre>
+<p>This is also why an STFT with <code>n_fft = 1024</code> gives <strong>513 frequency bins</strong>, not 1024: \(1024/2 = 512\) positive bins <strong>+ 1</strong> bin for the DC term (0 Hz, the constant offset). Remember <code>n_fft // 2 + 1</code> — it explains the shape of every spectrogram you'll ever print.</p>
+<hr />
+<h2 id="8-the-nyquistshannon-sampling-theorem">8. The Nyquist–Shannon sampling theorem</h2>
+<blockquote>
+<p><strong>To faithfully capture a frequency of \(f_{max}\) cycles/second, you must sample at more than \(2 f_{max}\) samples/second.</strong></p>
+</blockquote>
+<p>$$f_s > 2 \cdot f_{max} \qquad\Longleftrightarrow\qquad f_{max} < \frac{f_s}{2}$$</p>
+<p>The value \(f_s/2\) is called the <strong>Nyquist frequency</strong> — the hard ceiling on what a recording can represent.</p>
+<p><strong>Why factor 2 — the intuition:</strong> to know a wave is wiggling, you must catch it at least once near a <strong>peak</strong> and once near a <strong>trough</strong> in every cycle — i.e., <strong>at least 2 samples per cycle</strong>. With fewer, you literally cannot tell how fast it was wiggling (the spinning-fan illusion).</p>
+<p><strong>Worked examples:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Recording at…</th>
+<th>Nyquist frequency (max representable)</th>
+<th>Enough for…</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>16,000 Hz</td>
+<td>8,000 Hz</td>
+<td>Speech ✅ (speech lives mostly &lt; 8 kHz)</td>
+</tr>
+<tr>
+<td>44,100 Hz</td>
+<td>22,050 Hz</td>
+<td>Full human hearing (≤ 20 kHz) ✅</td>
+</tr>
+<tr>
+<td>1,000 Hz</td>
+<td>500 Hz</td>
+<td>Toy demo signals</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Why 44,100 and not exactly 40,000?</strong> Human hearing tops out around 20,000 Hz, so 40,000 samples/s is the <em>theoretical</em> minimum. Real-world hardware isn't perfect, so the industry standard adds a <strong>safety buffer</strong>: 44,100 Hz.</p>
+<hr />
+<h2 id="9-aliasing-the-downsampling-trap-deep-dive">9. Aliasing — the downsampling trap (deep dive)</h2>
+<h3 id="what-aliasing-is">What aliasing is</h3>
+<p>When a signal contains a frequency <strong>above</strong> the Nyquist limit of its sampling rate, that frequency doesn't just vanish. It <strong>folds back ("aliases") into the representable range and shows up as a wrong, lower frequency.</strong> The information is corrupted, not merely lost.</p>
+<h3 id="the-exact-scenario-from-the-video-memorize-this-reasoning">The exact scenario from the video (memorize this reasoning)</h3>
+<p>You collected speech data and want to fine-tune wav2vec 2.0 (which expects 16 kHz audio):</p>
+<ol>
+<li>Your data has real content up to <strong>10,000 Hz</strong>.</li>
+<li>It was recorded at <strong>24,000 samples/s</strong> → Nyquist = 12,000 Hz → 10,000 Hz fits. ✅ All good.</li>
+<li>The model needs <strong>16,000 samples/s</strong>, so you downsample 24k → 16k.</li>
+<li>New Nyquist = <strong>8,000 Hz</strong>. But your data had content up to 10,000 Hz!</li>
+<li>Everything between <strong>8,000–10,000 Hz gets aliased</strong> — folded down on top of legitimate lower frequencies, corrupting them. ❌</li>
+</ol>
+<p>The image-world analogy: resizing an ImageNet image from 256×256 to 224×224 also throws away high-frequency detail — same math, we just rarely think about it for images.</p>
+<h3 id="the-notebooksrcaliasing_demopy-experiment">The notebook/<code>src/aliasing_demo.py</code> experiment</h3>
+<ul>
+<li>Create a <strong>40 Hz</strong> sinusoid sampled at <strong>200 samples/s</strong> (Nyquist = 100 Hz → 40 fits fine; FFT shows a clean spike at 40 Hz).</li>
+<li><strong>Downsample by 4</strong> (keep every 4th sample) → 50 samples/s → Nyquist = <strong>25 Hz</strong> &lt; 40 Hz → the FFT spike moves to a <strong>wrong, lower frequency</strong>. The folded frequency lands at \(f_s - f = 50 - 40 = 10\) Hz. <strong>That's aliasing.</strong></li>
+</ul>
+<p><img alt="Aliasing: downsampling by 4 folds 40 Hz to 10 Hz" src="../assets/05_aliasing_downsample_x4.png" /></p>
+<ul>
+<li><strong>Downsample by 2</strong> instead → 100 samples/s → Nyquist = 50 Hz &gt; 40 Hz → the spike <strong>stays at 40 Hz</strong> (a bit less energy, but no corruption). ✅</li>
+</ul>
+<p><img alt="Safe downsampling by 2: the spike stays at 40 Hz" src="../assets/05_aliasing_downsample_x2.png" /></p>
+<h3 id="the-fold-back-formula">The fold-back formula</h3>
+<p>An input frequency \(f\) above Nyquist appears at:</p>
+<p>$$f_{alias} = \lvert f - k \cdot f_s \rvert \quad \text{for the integer } k \text{ that brings it into } [0, f_s/2]$$</p>
+<h3 id="how-to-downsample-safely">How to downsample <strong>safely</strong></h3>
+<p>Never just "take every Nth sample" on real audio. Proper resamplers <strong>low-pass filter first</strong> (removing everything above the new Nyquist), <em>then</em> decimate — so out-of-range content is deleted cleanly instead of folding back:</p>
+<pre><code class="language-python">resampler = torchaudio.transforms.Resample(orig_freq=24000, new_freq=16000)
+audio_16k = resampler(audio_24k)   # anti-aliasing filter is built in
+</code></pre>
+<p><strong>Rule of thumb:</strong> know the highest frequency that matters in your data, and never let the target sampling rate drop below twice that.</p>
+<hr />
+<h2 id="10-sum-of-sinusoids-un-mixing-the-paint">10. Sum of sinusoids: un-mixing the paint</h2>
+<p>The real magic: mix <strong>several</strong> sinusoids — say 5 Hz + 20 Hz + 40 Hz — into one messy-looking waveform. In the time domain it looks like noise-ish wiggles. Run the FFT:</p>
+<p><strong>Three clean spikes: at 5 Hz, 20 Hz, and 40 Hz.</strong> Add a 250 Hz component too → a fourth spike appears exactly at 250 Hz:</p>
+<p><img alt="FFT un-mixes a sum of sinusoids into individual spikes" src="../assets/03_fft_sum_of_sinusoids.png" /></p>
+<p>The Fourier transform perfectly un-mixed the recipe. This is precisely what it does to real speech, where hundreds of frequency components (pitch, harmonics, consonant noise, room reverb…) mix together in the air and in the microphone.</p>
+<hr />
+<h2 id="11-the-inverse-fourier-transform">11. The Inverse Fourier Transform</h2>
+<p>The FT is a <strong>lossless, reversible change of viewpoint</strong> — like translating a book between two languages with zero information lost:</p>
+<pre><code class="language-python">y_fft = np.fft.fft(y)          # time domain  -&gt; frequency domain
+y_back = np.fft.ifft(y_fft)    # frequency domain -&gt; time domain
+# y_back ≈ y  (identical, up to floating-point dust)
+</code></pre>
+<p><img alt="FFT then inverse FFT reproduces the original signal exactly" src="../assets/04_inverse_fft.png" /></p>
+<p><strong>The crucial fine print:</strong> perfect inversion needs the <strong>full complex values</strong> — magnitude <strong>and</strong> phase. Keep only magnitudes (as we do with spectrograms) and exact inversion becomes impossible. Pin this; it's the entire reason Griffin-Lim exists (<a href="#18-going-backwards-the-phase-problem-and-griffin-lim">section 18</a>).</p>
+<hr />
+<h2 id="12-why-the-plain-fourier-transform-is-not-enough-for-speech">12. Why the plain Fourier transform is not enough for speech</h2>
+<p>Apply one big FFT to a whole 8-second sentence and you get… every frequency that occurred <strong>anywhere</strong> in the clip, all pooled together. You learn <em>what</em> frequencies existed but <strong>not <em>when</em></strong>. All temporal information is gone.</p>
+<p>But speech <strong>is</strong> change over time — silence, then a vowel, then a hissy consonant, each with its own frequency fingerprint. A pure sine wave lives happily in the frequency domain because it never changes; speech doesn't.</p>
+<table>
+<thead>
+<tr>
+<th>Representation</th>
+<th>Time info</th>
+<th>Frequency info</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Waveform (time domain)</td>
+<td>✅</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>FFT of the whole clip (frequency domain)</td>
+<td>❌</td>
+<td>✅</td>
+</tr>
+<tr>
+<td><strong>Spectrogram (STFT)</strong></td>
+<td>✅</td>
+<td>✅ ← what we want</td>
+</tr>
+</tbody>
+</table>
+<p>The middle ground is the <strong>Short-Time Fourier Transform</strong>.</p>
+<hr />
+<h2 id="13-the-short-time-fourier-transform-stft-and-spectrograms-the-easy-way">13. The Short-Time Fourier Transform (STFT) and Spectrograms — the easy way</h2>
+<h3 id="the-idea-in-one-sentence">The idea in one sentence</h3>
+<blockquote>
+<p><strong>Don't Fourier-transform the whole clip at once — slide a small window along the audio, FFT each little chunk, and stack the results side by side into an image.</strong></p>
+</blockquote>
+<h3 id="step-by-step">Step by step</h3>
+<ol>
+<li><strong>Chop</strong> the waveform into short chunks (e.g., 400 samples = 25 ms at 16 kHz). Chunk length = <code>n_fft</code> / <code>nperseg</code> (the <em>window size</em>).</li>
+<li><strong>Overlap</strong> consecutive chunks (typically 50%). The stride between chunk starts = <code>hop_length</code> (e.g., 200).</li>
+<li><strong>Window</strong> each chunk — multiply by a smooth bell-shaped curve (Hann/Hamming) so edges taper to zero (<a href="#15-windowing-functions-and-overlap">section 15</a>).</li>
+<li><strong>FFT each chunk</strong> → one column of frequency energies for that moment in time.</li>
+<li><strong>Stack columns</strong> left to right → a 2-D array: the <strong>spectrogram</strong>.</li>
+</ol>
+<h3 id="how-to-read-a-spectrogram">How to read a spectrogram</h3>
+<p>A spectrogram is <strong>a picture of sound</strong>:</p>
+<ul>
+<li><strong>x-axis</strong> = time</li>
+<li><strong>y-axis</strong> = frequency (low at bottom, high at top)</li>
+<li><strong>color / brightness</strong> = energy (how loud that frequency is at that moment)</li>
+</ul>
+<p>Reading a speech spectrogram: silence shows as dark columns; vowels show as stacked horizontal bands (the harmonics of the voice); consonants like /s/ show as high-frequency noise splashes. The <strong>shapes of the bands over time correspond to phonemes</strong> — trained phoneticians can literally read words off a spectrogram.</p>
+<pre><code class="language-python"># scipy version (returns complex values -&gt; both magnitude AND phase)
+from scipy.signal import stft
+f, t_spec, Zxx = stft(audio, fs=16000, nperseg=400, noverlap=200)
+magnitude, phase = np.abs(Zxx), np.angle(Zxx)
+
+# torchaudio version (returns magnitude/power spectrogram directly)
+spec = torchaudio.transforms.Spectrogram(n_fft=400, hop_length=200)(audio)
+</code></pre>
+<p>Plot the <strong>phase</strong> image and you'll see what looks like pure noise — no visible structure. That's why everyone works with the magnitude spectrogram. (The phase still matters for <em>reconstruction</em> — <a href="#18-going-backwards-the-phase-problem-and-griffin-lim">section 18</a>.)</p>
+<p><img alt="STFT magnitude has clear structure, phase looks like noise" src="../assets/06_stft_magnitude_vs_phase.png" /></p>
+<hr />
+<h2 id="14-the-timefrequency-resolution-trade-off">14. The time–frequency resolution trade-off</h2>
+<p>You cannot have perfect time resolution <em>and</em> perfect frequency resolution at once. (This is mathematically the same uncertainty principle as in quantum mechanics.)</p>
+<table>
+<thead>
+<tr>
+<th>Window size</th>
+<th>Time resolution</th>
+<th>Frequency resolution</th>
+<th>Spectrogram looks…</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Small</strong> (e.g., 16 samples)</td>
+<td>✅ Excellent — you know exactly <em>when</em></td>
+<td>❌ Terrible — only <code>16/2+1 = 9</code> frequency bins</td>
+<td>Sharp horizontally, hopelessly coarse vertically</td>
+</tr>
+<tr>
+<td><strong>Large</strong> (e.g., 10,000 samples)</td>
+<td>❌ Terrible — each column covers a long stretch</td>
+<td>✅ Excellent — thousands of fine bins</td>
+<td>Beautifully detailed vertically, smeared horizontally</td>
+</tr>
+<tr>
+<td><strong>Medium</strong> (e.g., 400–1024)</td>
+<td>👍 Good</td>
+<td>👍 Good</td>
+<td>The sweet spot</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Why, intuitively:</strong> to <em>measure</em> a frequency you must watch the wave complete several cycles — a longer window sees more cycles, so it pins the frequency down precisely. But a longer window blurs <em>when</em> things happened, because everything inside one window collapses into one column. Short window = the reverse.</p>
+<p>Here is the same speech clip at window sizes 16, 400, and 10,000 — watch the detail move between the axes:</p>
+<p><img alt="Time-frequency trade-off at three window sizes" src="../assets/07_window_size_tradeoff.png" /></p>
+<p><strong>Practical defaults for 16 kHz speech:</strong> <code>n_fft = 400</code> (25 ms) with <code>hop_length = 200</code> (later <code>1024 / 512</code> for mel spectrograms). These defaults are battle-tested; picking them is "a little bit of an art," but start here.</p>
+<hr />
+<h2 id="15-windowing-functions-and-overlap">15. Windowing functions and overlap</h2>
+<p><strong>Problem:</strong> chopping audio into chunks creates artificial cliff edges — the chunk starts and stops abruptly. The FFT interprets those clicks as fake high-frequency energy smeared across the spectrum (<strong>spectral leakage</strong>).</p>
+<p><strong>Fix:</strong> before FFT-ing, multiply each chunk by a <strong>window function</strong> — a smooth bump (Hann, Hamming, …) that is 1 in the middle and fades to ~0 at both ends. Edges get gently faded instead of chopped → much cleaner spectrum.</p>
+<p><strong>But</strong> fading the edges means the edges of each chunk are underrepresented. <strong>Fix for the fix: overlap.</strong> With 50% overlap, every sample sits at the <em>center</em> of some window even if it was at the <em>edge</em> of another. Example with window 20,000 / hop 10,000: chunks cover 0–20,000, then 10,000–30,000, then 20,000–40,000, …</p>
+<p>Overlap also enables the <strong>overlap-add</strong> method used by the inverse STFT: overlapping regions must agree wherever windows overlap, which both makes reconstruction possible and provides the consistency constraint that Griffin-Lim exploits (<a href="#18-going-backwards-the-phase-problem-and-griffin-lim">section 18</a>).</p>
+<p><strong>Convention:</strong> <code>hop_length = n_fft / 2</code> (50% overlap) is the standard default.</p>
+<hr />
+<h2 id="16-decibel-db-scaling-why-spectrograms-look-black-without-it">16. Decibel (dB) scaling — why spectrograms look black without it</h2>
+<p>Plot a raw spectrogram and you'll see a nearly black image with a few bright pixels. The reason: audio energy spans an <strong>enormous range</strong> — the loudest components can be millions of times stronger than the quietest ones, and a linear color scale spends all its colors on the top sliver.</p>
+<p>Human loudness perception is <strong>logarithmic</strong> (like pitch — see mel, next section), so we log-scale energies into <strong>decibels</strong>:</p>
+<p>$$\text{dB} = 20 \cdot \log_{10}(\text{amplitude}) \qquad \big(= 10 \cdot \log_{10}(\text{power}), \text{ since power} = \text{amplitude}^2\big)$$</p>
+<pre><code class="language-python">db_spec = torchaudio.transforms.AmplitudeToDB()(spec)
+</code></pre>
+<p>Handy facts: +6 dB ≈ double the amplitude; +20 dB = 10× the amplitude. After dB conversion, the spectrogram suddenly shows all its structure — harmonics, formants, noise floors. <strong>Always convert to dB before visualizing or feeding spectrograms to a model.</strong></p>
+<p><img alt="Raw amplitudes look black; the same data in dB shows all structure" src="../assets/08_db_scaling.png" /></p>
+<hr />
+<h2 id="17-the-mel-scale-and-mel-spectrograms">17. The Mel scale and Mel spectrograms</h2>
+<h3 id="human-pitch-perception-is-not-linear">Human pitch perception is not linear</h3>
+<p>Play 200 Hz → 400 Hz: sounds like a big jump. Play 2,500 Hz → 2,700 Hz (the <strong>same</strong> +200 Hz): barely noticeable. We hear <strong>ratios</strong>, not absolute differences — 200→400 doubled the frequency; 2500→2700 raised it only 8%.</p>
+<p>Same as driving (the video's analogy): 10 → 20 mph feels dramatic (you doubled your speed); 60 → 70 mph feels like nothing, even though both are +10 mph. This "proportions, not absolutes" pattern is the <strong>power law of perception</strong> and applies to loudness, brightness, weight… and pitch.</p>
+<h3 id="the-mel-scale">The mel scale</h3>
+<p>Researchers played tones to listeners, asked which pitch differences <em>felt</em> equal, and fit a curve to the data:</p>
+<p>$$m = 2595 \cdot \log_{10}\!\left(1 + \frac{f}{700}\right) \qquad \big(\text{equivalently } 1127 \cdot \ln(1 + f/700)\big)$$</p>
+<p>Properties of the curve:</p>
+<ul>
+<li><strong>Below ~1,000 Hz:</strong> almost linear — small Hz changes are perceptually big, so they get lots of mel-space.</li>
+<li><strong>Above ~1,000 Hz:</strong> logarithmic — huge Hz ranges compress into little mel-space, mirroring how indifferent our ears become up there.</li>
+</ul>
+<p>Equal steps in <strong>mel</strong> ≈ equal steps in <strong>perceived pitch</strong>. (Two slightly different standard variants exist: <strong>HTK</strong> and <strong>Slaney</strong> — just be consistent; the notebook uses Slaney.)</p>
+<p><img alt="The Hz to mel curve: steep at low frequencies, flat at high ones" src="../assets/09_mel_scale_curve.png" /></p>
+<h3 id="mel-spectrogram-spectrogram-mel-spaced-frequency-bins">Mel spectrogram = spectrogram + mel-spaced frequency bins</h3>
+<p>Take the ordinary spectrogram, then pool its hundreds of linear frequency bins into a small number of <strong>mel bins</strong> (triangular overlapping filters): dense narrow bins at low frequencies (where our ears are sharp), wide sparse bins at high frequencies (where they're not).</p>
+<pre><code class="language-python">mel_transform = torchaudio.transforms.MelSpectrogram(
+    sample_rate=16000,
+    n_fft=1024,        # STFT window size
+    hop_length=512,    # STFT stride
+    n_mels=128,        # number of mel bins (128 is the speech-model standard)
+    mel_scale=&quot;slaney&quot;,
+)
+mel_spec = mel_transform(audio)              # internally: STFT -&gt; mel filterbank
+mel_db  = torchaudio.transforms.AmplitudeToDB()(mel_spec)
+</code></pre>
+<p><strong>Constraints and consequences:</strong></p>
+<ul>
+<li><code>n_mels</code> must be ≤ the number of FFT bins (<code>n_fft // 2 + 1</code>). With <code>n_fft=1024</code> you have 513 linear bins → 128 mels is comfortable.</li>
+<li>The mapping is <strong>many-to-one</strong> (several linear bins pour into one mel bin), so it is <strong>not perfectly invertible</strong> — information is genuinely discarded. This matters for reconstruction (next section).</li>
+<li>Why models love mel spectrograms: smaller input (128 rows instead of 513), and resolution is allocated where human-relevant information actually lives. The de-facto standard input for speech models.</li>
+</ul>
+<hr />
+<h2 id="18-going-backwards-the-phase-problem-and-griffin-lim">18. Going backwards: the phase problem and Griffin-Lim</h2>
+<h3 id="why-we-need-to-invert-at-all">Why we need to invert at all</h3>
+<p>A typical <strong>text-to-speech</strong> system doesn't generate waveforms directly — it generates a <strong>mel spectrogram</strong> (a much easier target to model), and then something must convert that picture back into actual audio.</p>
+<h3 id="the-two-obstacles">The two obstacles</h3>
+<ol>
+<li><strong>Mel → linear spectrogram is lossy.</strong> Many linear bins were pooled into each mel bin; un-pooling can't perfectly restore them. <code>torchaudio.transforms.InverseMelScale</code> gives a good least-squares estimate.</li>
+<li><strong>We only have magnitudes — the phase is gone.</strong> The inverse STFT needs full complex values (magnitude <strong>and</strong> phase). Spectrograms kept only magnitude. Without phase, we don't know how the frequency components in each frame <strong>align in time</strong> with each other, and adjacent frames won't stitch together into a coherent waveform.</li>
+</ol>
+<h3 id="the-griffin-lim-algorithm-phase-by-iteration">The Griffin-Lim algorithm — phase by iteration</h3>
+<p>Griffin-Lim recovers a <em>plausible</em> phase by exploiting one constraint: because STFT windows <strong>overlap</strong>, neighboring frames share samples — so their phases can't be arbitrary; they must be <strong>consistent</strong> with a single underlying waveform.</p>
+<p>The loop:</p>
+<ol>
+<li><strong>Guess</strong> random phases and attach them to the known magnitudes.</li>
+<li><strong>Inverse STFT</strong> → some waveform (initially garbage-ish).</li>
+<li><strong>STFT that waveform</strong> → its magnitudes have drifted from the target.</li>
+<li><strong>Snap magnitudes back</strong> to the known target values; keep the phases this round produced.</li>
+<li><strong>Repeat</strong> (e.g., 100 iterations). Each pass makes the phases more self-consistent; only consistent phases survive the round-trip.</li>
+</ol>
+<p>It's a projection method: bounce between "waveforms with the right magnitudes" and "valid consistent STFTs" until they agree.</p>
+<h3 id="full-reconstruction-pipeline-in-torchaudio">Full reconstruction pipeline in torchaudio</h3>
+<pre><code class="language-python"># mel spectrogram  -&gt;  linear spectrogram  -&gt;  waveform
+inv_mel = torchaudio.transforms.InverseMelScale(
+    n_stft=1024 // 2 + 1,   # 513 positive-frequency bins
+    n_mels=128, sample_rate=16000, mel_scale=&quot;slaney&quot;,
+)
+griffin_lim = torchaudio.transforms.GriffinLim(
+    n_fft=1024, hop_length=512, n_iter=100,
+)
+waveform_rec = griffin_lim(inv_mel(mel_spectrogram))
+</code></pre>
+<p><strong>Expected result:</strong> clearly intelligible speech that sounds <strong>slightly robotic/metallic</strong>. Two error sources: the lossy mel→linear step, and Griffin-Lim's phase being an iterative approximation, never the true phase.</p>
+<p><img alt="Mel spectrogram, recovered linear spectrogram, and Griffin-Lim waveform" src="../assets/10_mel_and_reconstruction.png" /></p>
+<hr />
+<h2 id="19-neural-vocoders">19. Neural vocoders</h2>
+<p>Griffin-Lim is the classical baseline, but modern systems use <strong>neural vocoders</strong> — networks trained to map mel spectrograms straight to waveforms:</p>
+<ul>
+<li><strong>HiFi-GAN</strong> — fast GAN-based vocoder, near-human quality, the current workhorse.</li>
+<li><strong>WaveNet / WaveGlow / MelGAN</strong> — earlier landmark designs.</li>
+</ul>
+<p>Because a vocoder is <em>trained on real audio</em>, it <strong>learns</strong> what plausible phase (and the detail lost by mel binning) should look like, instead of solving for it iteratively. Result: dramatically more natural audio. Modern TTS = (text → mel spectrogram model) + (mel spectrogram → waveform vocoder).</p>
+<hr />
+<h2 id="20-the-full-pipeline-summary-diagram">20. The full pipeline — summary diagram</h2>
+<pre><code class="language-text">                         FOURIER TRANSFORM (all time info lost -&gt; rarely used alone)
+                        ┌───────────────────────────► frequency domain
+                        │
+ WAVEFORM ──────────────┤
+ (time domain,          │  STFT (window + overlap + FFT per chunk)
+  raw samples)          └───────────────────────────► SPECTROGRAM  (&quot;picture of audio&quot;)
+                                                          │
+                                                          │  mel filterbank (perceptual scale)
+                                                          ▼
+                                                     MEL SPECTROGRAM   ◄── what TTS models
+                                                          │                predict, what ASR
+        ┌─────────────────────────────────────────────────┘                models consume
+        │  InverseMelScale (approximate! many-to-one binning)
+        ▼
+   LINEAR SPECTROGRAM (magnitude only — phase is missing)
+        │
+        │  Griffin-Lim (iterative phase recovery)   — or a neural vocoder (HiFi-GAN)
+        ▼
+   RECONSTRUCTED WAVEFORM  (≈ approximation of the original)
+</code></pre>
+<p>Two entry points for neural networks:</p>
+<ul>
+<li><strong>Raw waveform in</strong> → wav2vec 2.0 and friends.</li>
+<li><strong>Spectrogram / mel spectrogram in</strong> → DeepSpeech 2, Whisper, most TTS.</li>
+</ul>
+<hr />
+<h2 id="21-torchaudio-cheat-sheet">21. torchaudio cheat sheet</h2>
+<table>
+<thead>
+<tr>
+<th>Task</th>
+<th>API</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Load audio</td>
+<td><code>audio, sr = torchaudio.load("file.flac")</code></td>
+</tr>
+<tr>
+<td>Resample safely (anti-aliased)</td>
+<td><code>T.Resample(orig_freq, new_freq)</code></td>
+</tr>
+<tr>
+<td>Linear spectrogram</td>
+<td><code>T.Spectrogram(n_fft=400, hop_length=200)</code></td>
+</tr>
+<tr>
+<td>Mel spectrogram</td>
+<td><code>T.MelSpectrogram(sample_rate, n_fft, hop_length, n_mels, mel_scale)</code></td>
+</tr>
+<tr>
+<td>Amplitude → decibels</td>
+<td><code>T.AmplitudeToDB()</code></td>
+</tr>
+<tr>
+<td>Mel → linear spectrogram</td>
+<td><code>T.InverseMelScale(n_stft, n_mels, sample_rate, mel_scale)</code></td>
+</tr>
+<tr>
+<td>Magnitude spectrogram → waveform</td>
+<td><code>T.GriffinLim(n_fft, hop_length, n_iter)</code></td>
+</tr>
+<tr>
+<td>Play audio in a notebook</td>
+<td><code>IPython.display.Audio(waveform, rate=sr)</code></td>
+</tr>
+</tbody>
+</table>
+<p>(<code>T</code> = <code>torchaudio.transforms</code>.) Numpy/scipy counterparts: <code>np.fft.fft</code>, <code>np.fft.ifft</code>, <code>np.fft.fftfreq</code>, <code>scipy.signal.stft</code>.</p>
+<hr />
+<h2 id="22-common-pitfalls-and-quick-self-test">22. Common pitfalls and quick self-test</h2>
+<h3 id="pitfalls">Pitfalls</h3>
+<ol>
+<li><strong>Confusing samples/second with cycles/second.</strong> The first describes the recording, the second the sound. (<a href="#4-two-different-per-second-numbers-dont-mix-them-up">Section 4</a>)</li>
+<li><strong>Downsampling by slicing (<code>y[::4]</code>).</strong> Causes aliasing. Use a proper resampler with an anti-aliasing filter.</li>
+<li><strong>Forgetting dB conversion</strong> before viewing/feeding spectrograms — you'll see (and the model will see) almost nothing.</li>
+<li><strong>Expecting <code>n_fft</code> frequency bins.</strong> You get <code>n_fft // 2 + 1</code> (positive frequencies + DC).</li>
+<li><strong>Expecting mel → audio to be perfect.</strong> Mel binning is many-to-one and phase is gone; reconstruction is inherently approximate.</li>
+<li><strong>Assuming sampling rates match.</strong> Always check the file's actual rate against what the model expects; resample if needed.</li>
+</ol>
+<h3 id="self-test-answers-by-working-through-the-notebook">Self-test (answers by working through the notebook)</h3>
+<ol>
+<li>An audio file has 32,000 samples and lasts 2 seconds. What is its sampling rate, and what is the highest frequency it can represent?</li>
+<li>You slice-downsample a 60 Hz sinusoid recorded at 200 samples/s by a factor of 2. Does it alias? What about a factor of 4 — and at what frequency does the spike appear?</li>
+<li>Why does an STFT with <code>n_fft=400</code> produce 201 frequency bins?</li>
+<li>Give one reason to prefer a large STFT window and one to prefer a small one.</li>
+<li>Why can't you run an inverse STFT directly on a magnitude spectrogram, and what property of overlapping windows lets Griffin-Lim work anyway?</li>
+<li>Why do mel bins get wider as frequency increases?</li>
+</ol>
+<hr />
+<h2 id="23-parameter-keyword-glossary-what-n_fft-hop_length-etc-actually-mean">23. Parameter &amp; keyword glossary — what <code>n_fft</code>, <code>hop_length</code>, etc. actually mean</h2>
+<p>When you first open torchaudio or scipy code, you see a wall of short names: <code>n_fft</code>, <code>hop_length</code>, <code>n_mels</code>, <code>n_stft</code>, <code>nperseg</code>, <code>noverlap</code>. They are not arbitrary — each one controls <strong>how long a slice of audio is</strong>, <strong>how far you slide that slice</strong>, <strong>how many frequency rows you get</strong>, or <strong>how the result is scaled</strong>. This section is the decoder ring.</p>
+<h3 id="quick-reference-table">Quick reference table</h3>
+<table>
+<thead>
+<tr>
+<th>Keyword</th>
+<th>Library</th>
+<th>What it counts</th>
+<th>Typical speech value</th>
+<th>Main effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sample_rate</code> / <code>fs</code></td>
+<td>both</td>
+<td>samples per second of the audio file</td>
+<td>16,000</td>
+<td>Converts between sample indices and real time (seconds, Hz)</td>
+</tr>
+<tr>
+<td><code>n_fft</code></td>
+<td>torchaudio</td>
+<td>samples in one STFT window</td>
+<td>400 or 1024</td>
+<td>Window length → frequency resolution + time smearing</td>
+</tr>
+<tr>
+<td><code>hop_length</code></td>
+<td>torchaudio</td>
+<td>samples you advance between windows</td>
+<td>200 or 512</td>
+<td>Time step between spectrogram columns</td>
+</tr>
+<tr>
+<td><code>nperseg</code></td>
+<td>scipy STFT</td>
+<td>same role as <code>n_fft</code></td>
+<td>400</td>
+<td>Window length (scipy name)</td>
+</tr>
+<tr>
+<td><code>noverlap</code></td>
+<td>scipy STFT</td>
+<td>overlapping samples between windows</td>
+<td>200</td>
+<td>Overlap = <code>nperseg - hop_length</code></td>
+</tr>
+<tr>
+<td><code>n_stft</code></td>
+<td>torchaudio</td>
+<td>number of <strong>linear</strong> frequency bins</td>
+<td>513 (= 1024//2+1)</td>
+<td>Tells inverse transforms the spectrogram width</td>
+</tr>
+<tr>
+<td><code>n_mels</code></td>
+<td>torchaudio</td>
+<td>number of <strong>mel</strong> frequency bins</td>
+<td>128</td>
+<td>Vertical size of a mel spectrogram</td>
+</tr>
+<tr>
+<td><code>mel_scale</code></td>
+<td>torchaudio</td>
+<td>which Hz→mel formula</td>
+<td><code>"slaney"</code> or <code>"htk"</code></td>
+<td>Must match between forward and inverse mel</td>
+</tr>
+<tr>
+<td><code>n_iter</code></td>
+<td>GriffinLim</td>
+<td>phase-recovery iterations</td>
+<td>100</td>
+<td>More = better (slower) reconstruction</td>
+</tr>
+<tr>
+<td><code>orig_freq</code> / <code>new_freq</code></td>
+<td>Resample</td>
+<td>old and new sampling rates</td>
+<td>24000 → 16000</td>
+<td>Safe downsampling with anti-aliasing filter</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="sample_rate-also-sampling_rate-fs-sr"><code>sample_rate</code> (also <code>sampling_rate</code>, <code>fs</code>, <code>sr</code>)</h3>
+<p><strong>Meaning:</strong> how many amplitude numbers were recorded <strong>per second</strong> of real time.</p>
+<p><strong>Units:</strong> samples/second (written Hz, but this is <em>not</em> the pitch of the sound — see <a href="#4-two-different-per-second-numbers-dont-mix-them-up">section 4</a>).</p>
+<p><strong>Example:</strong> at <code>sample_rate = 16000</code>, sample index 16,000 is exactly 1.0 second into the clip.</p>
+<p><strong>Why it matters everywhere:</strong>
+- Converts window sizes from samples to milliseconds: <code>n_fft / sample_rate</code> seconds.
+- Sets the Nyquist ceiling: max representable frequency = <code>sample_rate / 2</code>.
+- Mel filterbanks and resamplers need it to place frequency bins on the correct Hz axis.
+- Models are trained at a fixed rate — if your file is 44.1 kHz and the model expects 16 kHz, you must resample.</p>
+<pre><code class="language-python">duration_seconds = len(audio) / sample_rate
+window_ms = n_fft / sample_rate * 1000        # e.g. 400 / 16000 = 25 ms
+nyquist_hz = sample_rate / 2                  # e.g. 8000 Hz at 16 kHz
+</code></pre>
+<hr />
+<h3 id="n_fft-the-stft-window-size-in-samples"><code>n_fft</code> — the STFT window size (in samples)</h3>
+<p><strong>Full name:</strong> number of FFT points.</p>
+<p><strong>Meaning:</strong> how many consecutive audio samples go into <strong>one</strong> short-time Fourier transform. This is the length of each chunk before FFT.</p>
+<p><strong>Not the same as:</strong> the number of frequency bins in the output — you get <strong><code>n_fft // 2 + 1</code></strong> bins (positive frequencies + DC), not <code>n_fft</code>.</p>
+<p><strong>What it controls:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Larger <code>n_fft</code></th>
+<th>Smaller <code>n_fft</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>More frequency bins (finer pitch detail)</td>
+<td>Fewer frequency bins</td>
+</tr>
+<tr>
+<td>Each bin covers a narrower Hz band</td>
+<td>Wider, blurrier frequency bands</td>
+</tr>
+<tr>
+<td>Longer time window → worse <em>when</em> things happened</td>
+<td>Shorter window → better time precision</td>
+</tr>
+<tr>
+<td>Needs more samples to "see" low frequencies clearly</td>
+<td>Can miss closely spaced harmonics</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Intuition:</strong> <code>n_fft</code> is how many samples you stare at before asking "what frequencies are in this little slice?" Stare longer → you resolve pitch better but lose track of timing.</p>
+<p><strong>Worked example at 16 kHz:</strong></p>
+<table>
+<thead>
+<tr>
+<th><code>n_fft</code></th>
+<th>Window duration</th>
+<th>Frequency bins</th>
+<th>Bin spacing (approx.)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>400</td>
+<td>25 ms</td>
+<td>201</td>
+<td>~80 Hz per bin</td>
+</tr>
+<tr>
+<td>1024</td>
+<td>64 ms</td>
+<td>513</td>
+<td>~31 Hz per bin</td>
+</tr>
+<tr>
+<td>16</td>
+<td>1 ms</td>
+<td>9</td>
+<td>very coarse</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="language-python">T.Spectrogram(n_fft=400, hop_length=200)(audio)
+# output shape: (201, num_time_frames)  — NOT (400, ...)
+</code></pre>
+<p><strong>Rule of thumb for speech:</strong> 400 (25 ms) for quick spectrograms; 1024 (64 ms) when building mel features for ASR/TTS — long enough to resolve harmonics, short enough that pitch doesn't change much inside one window.</p>
+<hr />
+<h3 id="hop_length-the-stride-between-windows"><code>hop_length</code> — the stride between windows</h3>
+<p><strong>Meaning:</strong> after FFT-ing one window of <code>n_fft</code> samples, advance the window start by <code>hop_length</code> samples and FFT again. This is the <strong>stride</strong> or <strong>hop</strong> between consecutive STFT columns.</p>
+<p><strong>Overlap:</strong> when <code>hop_length &lt; n_fft</code>, windows overlap. Overlap in samples:</p>
+<p>$$\text{overlap} = n\_fft - hop\_length$$</p>
+<p><strong>50% overlap (standard):</strong> <code>hop_length = n_fft // 2</code>
+- Window 1: samples 0 … 399
+- Window 2: samples 200 … 599  (200 samples shared)
+- Window 3: samples 400 … 799
+- …</p>
+<p><strong>What it controls:</strong>
+- <strong>Smaller hop</strong> → more time columns → finer time resolution → larger tensor → slower training.
+- <strong>Larger hop</strong> → fewer columns → coarser timing → smaller tensor.</p>
+<p><strong>Number of time frames (approx.):</strong></p>
+<p>$$\text{num\_frames} \approx \left\lfloor \frac{\text{num\_samples}}{hop\_length} \right\rfloor$$</p>
+<p>For our 3.4 s clip at 16 kHz (~54,400 samples) with <code>hop_length=200</code>: about <strong>272 columns</strong>. With <code>hop_length=512</code>: about <strong>106 columns</strong>.</p>
+<p><strong>Why overlap exists:</strong> window functions fade the edges of each chunk to zero. Without overlap, the faded edge samples would never be analyzed at full strength. 50% overlap ensures every sample sits near the <strong>center</strong> of some window where the window weight is strongest.</p>
+<p><strong>Must match on inversion:</strong> <code>GriffinLim</code> and inverse STFT need the <strong>same</strong> <code>n_fft</code> and <code>hop_length</code> used to create the spectrogram.</p>
+<hr />
+<h3 id="nperseg-and-noverlap-scipys-names-for-the-same-thing"><code>nperseg</code> and <code>noverlap</code> — scipy's names for the same thing</h3>
+<p>scipy uses different parameter names for the identical idea:</p>
+<table>
+<thead>
+<tr>
+<th>scipy</th>
+<th>torchaudio equivalent</th>
+<th>Relationship</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nperseg</code></td>
+<td><code>n_fft</code></td>
+<td>Length of each segment/window</td>
+</tr>
+<tr>
+<td><code>noverlap</code></td>
+<td><code>n_fft - hop_length</code></td>
+<td>Samples shared between consecutive segments</td>
+</tr>
+<tr>
+<td><code>fs</code></td>
+<td><code>sample_rate</code></td>
+<td>Sampling rate in Hz</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="language-python"># These two calls describe the same STFT settings:
+scipy.signal.stft(audio, fs=16000, nperseg=400, noverlap=200)
+T.Spectrogram(n_fft=400, hop_length=200)(audio)
+# because hop_length = nperseg - noverlap = 400 - 200 = 200
+</code></pre>
+<hr />
+<h3 id="frequency-bins-n_stft-and-the-dc-term">Frequency bins, <code>n_stft</code>, and the DC term</h3>
+<p>After an FFT of length <code>n_fft</code>, the output has <code>n_fft</code> complex numbers — but for <strong>real</strong> audio, half are redundant negative-frequency mirrors.</p>
+<p><strong>What we keep:</strong> <code>n_stft = n_fft // 2 + 1</code> bins:
+- Bin 0 = <strong>DC</strong> (0 Hz) — the average offset of the signal, not a pitch.
+- Bins 1 … <code>n_fft//2 - 1</code> = positive frequencies.
+- Bin <code>n_fft//2</code> = <strong>Nyquist frequency</strong> = <code>sample_rate / 2</code> (only appears when <code>n_fft</code> is even).</p>
+<p><strong>Example:</strong> <code>n_fft=1024</code> → <code>n_stft = 513</code>. That is why mel spectrograms with <code>n_fft=1024</code> have a linear stage of width 513 before being compressed to 128 mel bins.</p>
+<p><strong>Each bin's center frequency (approx.):</strong></p>
+<p>$$f_k = k \times \frac{sample\_rate}{n\_fft} \quad \text{for bin index } k$$</p>
+<p>So at 16 kHz with <code>n_fft=400</code>: bin 1 ≈ 40 Hz, bin 2 ≈ 80 Hz, …, bin 200 ≈ 8000 Hz (Nyquist).</p>
+<hr />
+<h3 id="n_mels-number-of-mel-filterbank-bins"><code>n_mels</code> — number of mel filterbank bins</h3>
+<p><strong>Meaning:</strong> how many <strong>mel-spaced</strong> frequency rows the mel spectrogram has after pooling the linear FFT bins.</p>
+<p><strong>Not independent of <code>n_fft</code>:</strong> you can only have as many mel bins as you have linear bins to pool from:</p>
+<p>$$n\_mels \leq n\_fft // 2 + 1$$</p>
+<p><strong>What it controls:</strong>
+- <strong>More mels</strong> (e.g. 128, 256) → finer perceptual frequency detail → taller tensor → more parameters for the model to process.
+- <strong>Fewer mels</strong> (e.g. 40, 80) → stronger compression → smaller input → less detail, especially at high frequencies.</p>
+<p><strong>Why 128 is standard:</strong> 513 linear bins compressed to 128 gives a good balance for speech — enough resolution for formants (vowel shapes) without the redundancy of 513 rows where human hearing barely distinguishes adjacent high-frequency bins.</p>
+<p><strong>Many-to-one mapping:</strong> several adjacent linear bins are weighted and summed into one mel bin (triangular filters). That is why <code>InverseMelScale</code> cannot perfectly recover the original linear spectrogram — information was genuinely merged.</p>
+<hr />
+<h3 id="n_stft-linear-bin-count-for-inverse-mel-transform"><code>n_stft</code> — linear bin count for inverse mel transform</h3>
+<p><strong>Meaning:</strong> tells <code>InverseMelScale</code> how many <strong>linear frequency bins</strong> to reconstruct when converting mel → linear spectrogram.</p>
+<p><strong>Always set to:</strong> <code>n_fft // 2 + 1</code> — the same count the forward STFT would have produced.</p>
+<pre><code class="language-python">inverse_mel = T.InverseMelScale(
+    n_stft=1024 // 2 + 1,   # 513 — must match forward n_fft
+    n_mels=128,
+    sample_rate=16000,
+    mel_scale=&quot;slaney&quot;,
+)
+</code></pre>
+<p>If <code>n_stft</code> doesn't match the <code>n_fft</code> used to build the mel spectrogram, frequencies land on the wrong Hz grid and reconstruction quality collapses.</p>
+<hr />
+<h3 id="mel_scale-which-hzmel-formula-to-use"><code>mel_scale</code> — which Hz→mel formula to use</h3>
+<p><strong>Options in torchaudio:</strong> <code>"slaney"</code> (default in this repo) or <code>"htk"</code>.</p>
+<p><strong>Meaning:</strong> two slightly different published curves for converting Hertz to the mel perceptual scale. They agree at low frequencies and diverge slightly at high frequencies.</p>
+<p><strong>Critical rule:</strong> use the <strong>same</strong> <code>mel_scale</code> for <code>MelSpectrogram</code> and <code>InverseMelScale</code>. Mixing them is like converting miles → km with one formula and km → miles with another — you won't get back to where you started.</p>
+<hr />
+<h3 id="n_iter-griffin-lim-iteration-count"><code>n_iter</code> — Griffin-Lim iteration count</h3>
+<p><strong>Meaning:</strong> how many times Griffin-Lim loops: guess phase → inverse STFT → STFT → snap magnitudes → repeat.</p>
+<p><strong>Trade-off:</strong>
+- Too few (e.g. 10) → phase hasn't converged → buzzy, metallic audio.
+- ~100 → usually enough for short speech clips.
+- More (500+) → diminishing returns, much slower.</p>
+<p>Griffin-Lim also requires matching <code>n_fft</code> and <code>hop_length</code> from the original spectrogram — it is inverting <em>that specific</em> STFT geometry.</p>
+<hr />
+<h3 id="orig_freq-and-new_freq-resampling-parameters"><code>orig_freq</code> and <code>new_freq</code> — resampling parameters</h3>
+<p>Used by <code>torchaudio.transforms.Resample</code>:</p>
+<pre><code class="language-python">T.Resample(orig_freq=24000, new_freq=16000)(audio)
+</code></pre>
+<ul>
+<li><strong><code>orig_freq</code>:</strong> the sampling rate the audio <strong>currently has</strong>.</li>
+<li><strong><code>new_freq</code>:</strong> the sampling rate you <strong>want</strong>.</li>
+</ul>
+<p>Unlike naive slicing (<code>audio[::2]</code>), <code>Resample</code> applies a <strong>low-pass filter</strong> first so frequencies above the new Nyquist limit are removed cleanly instead of aliasing. Always use this (or librosa.resample, sox, etc.) when changing sample rate for ML.</p>
+<hr />
+<h3 id="amplitudetodb-decibel-conversion"><code>AmplitudeToDB</code> — decibel conversion</h3>
+<p><strong>Meaning:</strong> log-compress spectrogram values so quiet and loud components are both visible.</p>
+<p>torchaudio's default:</p>
+<p>$$\text{dB} = 20 \cdot \log_{10}(\text{amplitude})$$</p>
+<p>(Some APIs use power (amplitude²) and a factor of 10 instead — same idea, different convention. torchaudio's <code>AmplitudeToDB</code> uses amplitude.)</p>
+<p><strong>Why:</strong> raw STFT magnitudes span a huge dynamic range (silence vs vowel peaks). A linear color scale shows only the loudest pixels; dB spreads the contrast across the whole image and matches human loudness perception better.</p>
+<hr />
+<h3 id="other-names-you-will-see">Other names you will see</h3>
+<table>
+<thead>
+<tr>
+<th>Term</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>STFT</strong></td>
+<td>Short-Time Fourier Transform — FFT applied repeatedly on sliding windows</td>
+</tr>
+<tr>
+<td><strong>FFT</strong></td>
+<td>Fast Fourier Transform — the algorithm; <code>n_fft</code> is its input length</td>
+</tr>
+<tr>
+<td><strong>DFT</strong></td>
+<td>Discrete Fourier Transform — the math the FFT computes</td>
+</tr>
+<tr>
+<td><strong>Spectrogram</strong></td>
+<td>2-D array: frequency (rows) × time (columns) × energy (color)</td>
+</tr>
+<tr>
+<td><strong>Magnitude</strong></td>
+<td><code>abs(complex_fft_value)</code> — how loud each frequency is; phase discarded for analysis</td>
+</tr>
+<tr>
+<td><strong>Phase</strong></td>
+<td><code>angle(complex_fft_value)</code> — timing offset of each frequency; needed for perfect reconstruction</td>
+</tr>
+<tr>
+<td><strong>Window / window function</strong></td>
+<td>Bell-shaped multiplier (Hann, Hamming) applied to each chunk before FFT to avoid edge clicks</td>
+</tr>
+<tr>
+<td><strong>Spectral leakage</strong></td>
+<td>Fake frequencies caused by chopping a wave mid-cycle without windowing</td>
+</tr>
+<tr>
+<td><strong>Overlap-add</strong></td>
+<td>Method to stitch inverse-STFT windows back into a continuous waveform</td>
+</tr>
+<tr>
+<td><strong>Formants</strong></td>
+<td>Horizontal bands in speech spectrograms — resonances of the vocal tract (vowel identity)</td>
+</tr>
+<tr>
+<td><strong>Vocoder</strong></td>
+<td>Any system that turns a spectral representation (mel spectrogram) back into a waveform</td>
+</tr>
+<tr>
+<td><strong>DC bin</strong></td>
+<td>FFT bin 0 at 0 Hz — the signal's average value, not a musical pitch</td>
+</tr>
+<tr>
+<td><strong>Time frame / time bin</strong></td>
+<td>One column of the spectrogram — the spectrum at one moment</td>
+</tr>
+<tr>
+<td><strong>Power spectrogram</strong></td>
+<td>Magnitude squared (<code>|X|²</code>) instead of magnitude (<code>|X|</code>); energy rather than amplitude</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="one-complete-example-tracing-every-number">One complete example — tracing every number</h3>
+<p>Take the mel pipeline from this repository:</p>
+<pre><code class="language-python">mel = T.MelSpectrogram(
+    sample_rate=16000,   # 16,000 samples per second of audio
+    n_fft=1024,          # each STFT window is 1024 samples = 64 ms
+    hop_length=512,      # advance 512 samples (32 ms) per column → 50% overlap
+    n_mels=128,          # compress 513 linear bins → 128 mel bins
+    mel_scale=&quot;slaney&quot;,
+)(audio)
+</code></pre>
+<p>For a 3.4 s clip (~54,400 samples):</p>
+<table>
+<thead>
+<tr>
+<th>Quantity</th>
+<th>Value</th>
+<th>How</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Window duration</td>
+<td>64 ms</td>
+<td>1024 / 16000</td>
+</tr>
+<tr>
+<td>Hop duration</td>
+<td>32 ms</td>
+<td>512 / 16000</td>
+</tr>
+<tr>
+<td>Linear frequency bins (internal)</td>
+<td>513</td>
+<td>1024 // 2 + 1</td>
+</tr>
+<tr>
+<td>Mel frequency bins (output rows)</td>
+<td>128</td>
+<td><code>n_mels</code></td>
+</tr>
+<tr>
+<td>Time frames (output columns)</td>
+<td>~106</td>
+<td>~54400 / 512</td>
+</tr>
+<tr>
+<td><strong>Output tensor shape</strong></td>
+<td><strong>(128, 106)</strong></td>
+<td>mel bins × time</td>
+</tr>
+<tr>
+<td>Max frequency represented</td>
+<td>8000 Hz</td>
+<td>16000 / 2 (Nyquist)</td>
+</tr>
+<tr>
+<td>Approx. Hz per linear bin</td>
+<td>31.25 Hz</td>
+<td>16000 / 1024</td>
+</tr>
+</tbody>
+</table>
+<p>Then reconstruction:</p>
+<pre><code class="language-python">linear = T.InverseMelScale(n_stft=513, n_mels=128, sample_rate=16000, mel_scale=&quot;slaney&quot;)(mel)
+wave   = T.GriffinLim(n_fft=1024, hop_length=512, n_iter=100)(linear)
+</code></pre>
+<p>Every highlighted parameter must stay consistent across the forward and inverse path.</p>
+<hr />
+<h2 id="sources-further-learning">Sources &amp; further learning</h2>
+<ul>
+<li>Video these notes accompany: <a href="https://www.youtube.com/watch?v=55QWsm1itKo">Intro to Audio Processing for Deep Learning</a></li>
+<li><a href="https://youtu.be/spUNpyF58BY">3Blue1Brown — But what is the Fourier Transform?</a> (essential visual intuition)</li>
+<li>Valerio Velardo — <a href="https://www.youtube.com/playlist?list=PL-wATfeyAMNqIee7cH3q1bh4QJFAaeNv0">Audio Signal Processing for ML playlist</a> (deeper theory, from-scratch implementations)</li>
+<li><a href="https://pytorch.org/audio/stable/index.html">torchaudio documentation</a></li>
+<li>Griffin &amp; Lim (1984), <em>Signal Estimation from Modified Short-Time Fourier Transform</em></li>
+</ul>
+</main>
+</body>
+</html>
