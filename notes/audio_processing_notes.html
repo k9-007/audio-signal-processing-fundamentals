@@ -1,121 +1,174 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Audio Signal Processing for Deep Learning — Learner Notes</title>
+<title>Audio Signal Processing for Deep Learning — Interactive Notes</title>
 <script>
-  MathJax = {
-    tex: {
-      inlineMath: [["\\(", "\\)"], ["$", "$"]],
-      displayMath: [["$$", "$$"], ["\\[", "\\]"]]
-    }
-  };
+  MathJax = { tex: { inlineMath: [["\\(", "\\)"], ["$", "$"]], displayMath: [["$$", "$$"], ["\\[", "\\]"]] } };
 </script>
 <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/styles/github-dark.min.css">
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/highlight.min.js"></script>
 <style>
   :root {
-    --bg: #0f1117;
-    --surface: #171a23;
-    --surface2: #1e2230;
-    --text: #d7dae2;
-    --muted: #8b91a3;
-    --accent: #7aa2f7;
-    --accent2: #9ece6a;
-    --border: #2a2f3f;
+    --bg: #0f1117; --surface: #171a23; --surface2: #1e2230; --text: #d7dae2; --muted: #8b91a3;
+    --accent: #7aa2f7; --accent2: #9ece6a; --orange: #ff9e64; --red: #f7768e; --purple: #bb9af7; --yellow: #e0af68;
+    --border: #2a2f3f; --sidebar-w: 300px;
+  }
+  [data-theme="light"] {
+    --bg: #f7f8fb; --surface: #ffffff; --surface2: #eef1f7; --text: #1d2230; --muted: #5c6478;
+    --accent: #2f6feb; --accent2: #3a8f3a; --orange: #d9730d; --red: #d0405f; --purple: #7c4dcc; --yellow: #b07d10;
+    --border: #d9deea;
   }
   * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    background: var(--bg);
-    color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    line-height: 1.7;
-    font-size: 16.5px;
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--text); line-height: 1.7; font-size: 16.5px;
+         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+  #progress { position: fixed; top: 0; left: 0; height: 3px; width: 0; background: linear-gradient(90deg, var(--accent), var(--accent2)); z-index: 50; transition: width .1s; }
+
+  /* layout */
+  .layout { display: grid; grid-template-columns: var(--sidebar-w) 1fr; min-height: 100vh; }
+  aside { position: sticky; top: 0; height: 100vh; overflow-y: auto; background: var(--surface); border-right: 1px solid var(--border); padding: 22px 18px; }
+  aside h1 { font-size: 1rem; margin: 0 0 4px; color: var(--text); line-height: 1.3; }
+  aside .sub { font-size: .8rem; color: var(--muted); margin: 0 0 14px; }
+  aside .stats { font-size: .78rem; color: var(--muted); margin: 8px 0 14px; padding: 8px 10px; background: var(--surface2); border-radius: 8px; }
+  aside .stats b { color: var(--accent2); }
+  aside ul { list-style: none; padding: 0; margin: 0; }
+  aside li a { display: flex; gap: 8px; align-items: flex-start; padding: 6px 8px; border-radius: 7px; color: var(--muted); text-decoration: none; font-size: .86rem; line-height: 1.35; }
+  aside li a:hover { background: var(--surface2); color: var(--text); }
+  aside li a.active { background: var(--surface2); color: var(--accent); font-weight: 600; }
+  aside input.done { margin: 4px 0 0; accent-color: var(--accent2); flex: none; }
+  aside li a.completed span { text-decoration: line-through; opacity: .65; }
+  .toolbar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+  .tbtn { border: 1px solid var(--border); background: var(--surface2); color: var(--text); border-radius: 7px; padding: 5px 10px; font-size: .78rem; cursor: pointer; }
+  .tbtn:hover { border-color: var(--accent); }
+  #menu-btn { display: none; position: fixed; top: 12px; left: 12px; z-index: 60; }
+
+  main { max-width: 900px; margin: 0 auto; padding: 40px 34px 140px; min-width: 0; }
+  @media (max-width: 1000px) {
+    .layout { grid-template-columns: 1fr; }
+    aside { position: fixed; left: 0; top: 0; width: min(88vw, 340px); transform: translateX(-100%); transition: transform .2s; z-index: 55; }
+    aside.open { transform: none; box-shadow: 0 0 40px rgba(0,0,0,.5); }
+    #menu-btn { display: block; }
+    main { padding: 60px 18px 120px; }
   }
-  main {
-    max-width: 880px;
-    margin: 0 auto;
-    padding: 48px 28px 120px;
-  }
-  h1 {
-    font-size: 2.1rem;
-    line-height: 1.25;
-    color: #fff;
-    border-bottom: 3px solid var(--accent);
-    padding-bottom: 14px;
-  }
-  h2 {
-    font-size: 1.5rem;
-    color: var(--accent);
-    margin-top: 3.2rem;
-    padding-top: 1.2rem;
-    border-top: 1px solid var(--border);
-  }
+
+  /* typography */
+  h1 { font-size: 2.1rem; line-height: 1.25; border-bottom: 3px solid var(--accent); padding-bottom: 14px; }
+  h2 { font-size: 1.5rem; color: var(--accent); margin-top: 3.2rem; padding-top: 1.2rem; border-top: 1px solid var(--border); scroll-margin-top: 20px; }
   h3 { font-size: 1.15rem; color: var(--accent2); margin-top: 2rem; }
-  a { color: var(--accent); text-decoration: none; }
-  a:hover { text-decoration: underline; }
-  blockquote {
-    margin: 1.2em 0;
-    padding: 12px 20px;
-    background: var(--surface);
-    border-left: 4px solid var(--accent2);
-    border-radius: 0 8px 8px 0;
-    color: var(--text);
-  }
-  blockquote p { margin: 0.4em 0; }
-  code {
-    font-family: "SF Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: 0.86em;
-    background: var(--surface2);
-    padding: 2px 6px;
-    border-radius: 5px;
-    color: #e0af68;
-  }
-  pre {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 16px 20px;
-    overflow-x: auto;
-    line-height: 1.55;
-  }
+  h4 { font-size: 1rem; color: var(--text); margin-top: 1.6rem; }
+  a { color: var(--accent); text-decoration: none; } a:hover { text-decoration: underline; }
+  blockquote { margin: 1.2em 0; padding: 12px 20px; background: var(--surface); border-left: 4px solid var(--accent2); border-radius: 0 8px 8px 0; }
+  blockquote p { margin: .4em 0; }
+  code { font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace; font-size: .86em; background: var(--surface2); padding: 2px 6px; border-radius: 5px; color: var(--yellow); }
+  pre { position: relative; background: #0b0e14; border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; overflow-x: auto; line-height: 1.55; }
   pre code { background: none; padding: 0; color: #c0caf5; }
-  table {
-    border-collapse: collapse;
-    width: 100%;
-    margin: 1.4em 0;
-    font-size: 0.94em;
-  }
-  th, td {
-    border: 1px solid var(--border);
-    padding: 9px 14px;
-    text-align: left;
-    vertical-align: top;
-  }
-  th { background: var(--surface2); color: #fff; }
-  tr:nth-child(even) td { background: var(--surface); }
+  pre .copy { position: absolute; top: 8px; right: 8px; font-size: .72rem; border: 1px solid var(--border); background: var(--surface2); color: var(--text); border-radius: 6px; padding: 3px 8px; cursor: pointer; opacity: 0; transition: opacity .15s; }
+  pre:hover .copy { opacity: 1; }
+  table { border-collapse: collapse; width: 100%; margin: 1.4em 0; font-size: .94em; display: block; overflow-x: auto; }
+  th, td { border: 1px solid var(--border); padding: 9px 14px; text-align: left; vertical-align: top; }
+  th { background: var(--surface2); } tr:nth-child(even) td { background: var(--surface); }
   hr { border: none; border-top: 1px solid var(--border); margin: 2.5rem 0; }
-  li { margin: 0.3em 0; }
-  strong { color: #fff; }
-  img {
-    max-width: 100%;
-    height: auto;
-    display: block;
-    margin: 1.4em auto;
-    border-radius: 10px;
-    border: 1px solid var(--border);
-    background: #fff;
-  }
+  li { margin: .3em 0; } strong { color: var(--text); font-weight: 700; }
+  img { max-width: 100%; height: auto; display: block; margin: 1.4em auto; border-radius: 10px; border: 1px solid var(--border); background: #fff; cursor: zoom-in; }
   .MathJax { color: var(--text); }
+
+  /* callouts */
+  .callout { border-left-width: 4px; padding: 14px 20px 12px; position: relative; }
+  .callout-label { display: inline-block; font-size: .7rem; letter-spacing: .08em; text-transform: uppercase; font-weight: 700; margin-right: 10px; padding: 2px 8px; border-radius: 999px; vertical-align: middle; }
+  .callout.takeaway { border-color: var(--accent2); background: color-mix(in srgb, var(--accent2) 8%, var(--surface)); } .callout.takeaway .callout-label { background: var(--accent2); color: #0b0e14; }
+  .callout.research { border-color: var(--purple); background: color-mix(in srgb, var(--purple) 8%, var(--surface)); } .callout.research .callout-label { background: var(--purple); color: #0b0e14; }
+  .callout.industry { border-color: var(--orange); background: color-mix(in srgb, var(--orange) 8%, var(--surface)); } .callout.industry .callout-label { background: var(--orange); color: #0b0e14; }
+  .callout.tryit { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); } .callout.tryit .callout-label { background: var(--accent); color: #0b0e14; }
+  .callout.mistake { border-color: var(--red); background: color-mix(in srgb, var(--red) 8%, var(--surface)); } .callout.mistake .callout-label { background: var(--red); color: #0b0e14; }
+  .callout.deep { border-color: var(--yellow); background: color-mix(in srgb, var(--yellow) 8%, var(--surface)); } .callout.deep .callout-label { background: var(--yellow); color: #0b0e14; }
+
+  /* quizzes */
+  details { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 16px; margin: .8em 0; }
+  details summary { cursor: pointer; font-weight: 600; color: var(--text); }
+  details summary::marker { color: var(--accent); }
+  details[open] { border-color: var(--accent); }
+  details[open] summary { margin-bottom: 8px; color: var(--accent); }
+
+  /* widgets */
+  .widget { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px 14px; margin: 1.6em 0; box-shadow: 0 6px 30px rgba(0,0,0,.15); }
+  .w-title { font-weight: 700; margin-bottom: 4px; display: flex; align-items: center; gap: 10px; }
+  .w-badge { font-size: .66rem; letter-spacing: .1em; text-transform: uppercase; background: var(--accent); color: #0b0e14; padding: 2px 8px; border-radius: 999px; }
+  .w-help { color: var(--muted); font-size: .88rem; margin: 4px 0 12px; line-height: 1.5; }
+  .w-controls { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-bottom: 10px; align-items: center; }
+  .w-group { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; padding: 6px 10px; border: 1px dashed var(--border); border-radius: 8px; }
+  .w-group-title { font-size: .78rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  .w-slider { display: flex; align-items: center; gap: 8px; font-size: .86rem; }
+  .w-label { color: var(--muted); min-width: 0; white-space: nowrap; }
+  .w-slider input[type=range] { width: 150px; accent-color: var(--accent); }
+  .w-val { font-family: ui-monospace, Menlo, monospace; font-size: .82rem; color: var(--accent2); min-width: 56px; }
+  .w-num, .w-select { background: var(--surface2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; font-size: .86rem; width: 110px; }
+  .w-toggle { display: flex; align-items: center; gap: 6px; font-size: .86rem; } .w-toggle input { accent-color: var(--accent2); }
+  .w-btn { border: 1px solid var(--border); background: var(--surface2); color: var(--text); border-radius: 7px; padding: 5px 12px; font-size: .84rem; cursor: pointer; }
+  .w-btn:hover { border-color: var(--accent); } .w-btn.primary { background: var(--accent); color: #0b0e14; border-color: var(--accent); }
+  .w-canvas { width: 100%; display: block; border-radius: 8px; }
+  .w-readout { font-size: .88rem; margin-top: 10px; line-height: 1.55; color: var(--text); }
+  .w-readout .muted, .muted { color: var(--muted); }
+  .w-readout .good, .good { color: var(--accent2); font-weight: 700; } .w-readout .bad, .bad { color: var(--red); font-weight: 700; }
+  .w-table { display: table; width: auto; font-size: .86rem; margin: 6px 0; } .w-table td { padding: 4px 12px; border: none; border-bottom: 1px solid var(--border); }
+  .w-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+  .w-chip { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 4px 8px; font-family: ui-monospace, Menlo, monospace; font-size: .8rem; text-align: center; min-width: 40px; }
+  .w-chip small { display: block; color: var(--muted); font-size: .68rem; } .w-chip.special { border-color: var(--orange); color: var(--orange); }
+  .w-textarea, .w-text { width: 100%; background: var(--surface2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: .92rem; font-family: inherit; }
+
+  /* lightbox + back to top */
+  #lightbox { position: fixed; inset: 0; background: rgba(0,0,0,.88); display: none; align-items: center; justify-content: center; z-index: 100; cursor: zoom-out; }
+  #lightbox img { max-width: 96vw; max-height: 94vh; border: none; background: #fff; }
+  #totop { position: fixed; right: 22px; bottom: 22px; z-index: 40; display: none; }
 </style>
 </head>
 <body>
+<div id="progress"></div>
+<button class="tbtn" id="menu-btn">☰ contents</button>
+<div class="layout">
+<aside id="sidebar">
+  <h1>Audio Signal Processing for Deep Learning</h1>
+  <p class="sub">Interactive learner notes — waveforms, Fourier, spectrograms, mel, Griffin-Lim</p>
+  <div class="toolbar">
+    <button class="tbtn" id="theme-btn">☾ theme</button>
+    <button class="tbtn" id="reset-btn" title="clear progress">reset progress</button>
+  </div>
+  <div class="stats">Progress: <b id="pct">0%</b> · <span id="done-count">0</span> sections done · tick a box when a section makes sense to you</div>
+  <ul id="toc"><li><a href="#table-of-contents" data-target="table-of-contents"><input type="checkbox" class="done" data-section="table-of-contents" title="mark as done"><span>Table of Contents</span></a></li>
+<li><a href="#1-why-audio-pre-processing-matters" data-target="1-why-audio-pre-processing-matters"><input type="checkbox" class="done" data-section="1-why-audio-pre-processing-matters" title="mark as done"><span>1. Why audio pre-processing matters</span></a></li>
+<li><a href="#2-sound-as-data-waveforms-and-sampling-rate" data-target="2-sound-as-data-waveforms-and-sampling-rate"><input type="checkbox" class="done" data-section="2-sound-as-data-waveforms-and-sampling-rate" title="mark as done"><span>2. Sound as data: waveforms and sampling rate</span></a></li>
+<li><a href="#3-frequency-the-basics-the-easy-way" data-target="3-frequency-the-basics-the-easy-way"><input type="checkbox" class="done" data-section="3-frequency-the-basics-the-easy-way" title="mark as done"><span>3. Frequency — the basics, the easy way</span></a></li>
+<li><a href="#4-two-different-per-second-numbers-dont-mix-them-up" data-target="4-two-different-per-second-numbers-dont-mix-them-up"><input type="checkbox" class="done" data-section="4-two-different-per-second-numbers-dont-mix-them-up" title="mark as done"><span>4. Two different "per second" numbers (don't mix them up!)</span></a></li>
+<li><a href="#5-the-fourier-transform-intuition-first" data-target="5-the-fourier-transform-intuition-first"><input type="checkbox" class="done" data-section="5-the-fourier-transform-intuition-first" title="mark as done"><span>5. The Fourier Transform — intuition first</span></a></li>
+<li><a href="#6-reading-the-fft-output-complex-numbers-magnitude-phase" data-target="6-reading-the-fft-output-complex-numbers-magnitude-phase"><input type="checkbox" class="done" data-section="6-reading-the-fft-output-complex-numbers-magnitude-phase" title="mark as done"><span>6. Reading the FFT output: complex numbers, magnitude, phase</span></a></li>
+<li><a href="#7-negative-frequencies-why-they-appear-why-we-ignore-them" data-target="7-negative-frequencies-why-they-appear-why-we-ignore-them"><input type="checkbox" class="done" data-section="7-negative-frequencies-why-they-appear-why-we-ignore-them" title="mark as done"><span>7. Negative frequencies — why they appear, why we ignore them</span></a></li>
+<li><a href="#8-the-nyquistshannon-sampling-theorem" data-target="8-the-nyquistshannon-sampling-theorem"><input type="checkbox" class="done" data-section="8-the-nyquistshannon-sampling-theorem" title="mark as done"><span>8. The Nyquist–Shannon sampling theorem</span></a></li>
+<li><a href="#9-aliasing-the-downsampling-trap-deep-dive" data-target="9-aliasing-the-downsampling-trap-deep-dive"><input type="checkbox" class="done" data-section="9-aliasing-the-downsampling-trap-deep-dive" title="mark as done"><span>9. Aliasing — the downsampling trap (deep dive)</span></a></li>
+<li><a href="#10-sum-of-sinusoids-un-mixing-the-paint" data-target="10-sum-of-sinusoids-un-mixing-the-paint"><input type="checkbox" class="done" data-section="10-sum-of-sinusoids-un-mixing-the-paint" title="mark as done"><span>10. Sum of sinusoids: un-mixing the paint</span></a></li>
+<li><a href="#11-the-inverse-fourier-transform" data-target="11-the-inverse-fourier-transform"><input type="checkbox" class="done" data-section="11-the-inverse-fourier-transform" title="mark as done"><span>11. The Inverse Fourier Transform</span></a></li>
+<li><a href="#12-why-the-plain-fourier-transform-is-not-enough-for-speech" data-target="12-why-the-plain-fourier-transform-is-not-enough-for-speech"><input type="checkbox" class="done" data-section="12-why-the-plain-fourier-transform-is-not-enough-for-speech" title="mark as done"><span>12. Why the plain Fourier transform is not enough for speech</span></a></li>
+<li><a href="#13-the-short-time-fourier-transform-stft-and-spectrograms-the-easy-way" data-target="13-the-short-time-fourier-transform-stft-and-spectrograms-the-easy-way"><input type="checkbox" class="done" data-section="13-the-short-time-fourier-transform-stft-and-spectrograms-the-easy-way" title="mark as done"><span>13. The Short-Time Fourier Transform (STFT) and Spectrograms — the easy way</span></a></li>
+<li><a href="#14-the-timefrequency-resolution-trade-off" data-target="14-the-timefrequency-resolution-trade-off"><input type="checkbox" class="done" data-section="14-the-timefrequency-resolution-trade-off" title="mark as done"><span>14. The time–frequency resolution trade-off</span></a></li>
+<li><a href="#15-windowing-functions-and-overlap" data-target="15-windowing-functions-and-overlap"><input type="checkbox" class="done" data-section="15-windowing-functions-and-overlap" title="mark as done"><span>15. Windowing functions and overlap</span></a></li>
+<li><a href="#16-decibel-db-scaling-why-spectrograms-look-black-without-it" data-target="16-decibel-db-scaling-why-spectrograms-look-black-without-it"><input type="checkbox" class="done" data-section="16-decibel-db-scaling-why-spectrograms-look-black-without-it" title="mark as done"><span>16. Decibel (dB) scaling — why spectrograms look black without it</span></a></li>
+<li><a href="#17-the-mel-scale-and-mel-spectrograms" data-target="17-the-mel-scale-and-mel-spectrograms"><input type="checkbox" class="done" data-section="17-the-mel-scale-and-mel-spectrograms" title="mark as done"><span>17. The Mel scale and Mel spectrograms</span></a></li>
+<li><a href="#18-going-backwards-the-phase-problem-and-griffin-lim" data-target="18-going-backwards-the-phase-problem-and-griffin-lim"><input type="checkbox" class="done" data-section="18-going-backwards-the-phase-problem-and-griffin-lim" title="mark as done"><span>18. Going backwards: the phase problem and Griffin-Lim</span></a></li>
+<li><a href="#19-neural-vocoders" data-target="19-neural-vocoders"><input type="checkbox" class="done" data-section="19-neural-vocoders" title="mark as done"><span>19. Neural vocoders</span></a></li>
+<li><a href="#20-the-full-pipeline-summary-diagram" data-target="20-the-full-pipeline-summary-diagram"><input type="checkbox" class="done" data-section="20-the-full-pipeline-summary-diagram" title="mark as done"><span>20. The full pipeline — summary diagram</span></a></li>
+<li><a href="#21-torchaudio-cheat-sheet" data-target="21-torchaudio-cheat-sheet"><input type="checkbox" class="done" data-section="21-torchaudio-cheat-sheet" title="mark as done"><span>21. torchaudio cheat sheet</span></a></li>
+<li><a href="#22-common-pitfalls-and-quick-self-test" data-target="22-common-pitfalls-and-quick-self-test"><input type="checkbox" class="done" data-section="22-common-pitfalls-and-quick-self-test" title="mark as done"><span>22. Common pitfalls and quick self-test</span></a></li>
+<li><a href="#23-parameter-keyword-glossary-what-n_fft-hop_length-etc-actually-mean" data-target="23-parameter-keyword-glossary-what-n_fft-hop_length-etc-actually-mean"><input type="checkbox" class="done" data-section="23-parameter-keyword-glossary-what-n_fft-hop_length-etc-actually-mean" title="mark as done"><span>23. Parameter &amp; keyword glossary — what n_fft, hop_length, etc. actually mean</span></a></li>
+<li><a href="#24-from-learner-to-researcher-builder-the-roadmap" data-target="24-from-learner-to-researcher-builder-the-roadmap"><input type="checkbox" class="done" data-section="24-from-learner-to-researcher-builder-the-roadmap" title="mark as done"><span>24. From learner to researcher / builder — the roadmap</span></a></li>
+<li><a href="#sources-further-learning" data-target="sources-further-learning"><input type="checkbox" class="done" data-section="sources-further-learning" title="mark as done"><span>Sources &amp; further learning</span></a></li></ul>
+</aside>
 <main>
 <h1 id="audio-signal-processing-for-deep-learning-detailed-learner-notes">Audio Signal Processing for Deep Learning — Detailed Learner Notes</h1>
 <blockquote>
 <p>Companion notes for the video <strong><a href="https://www.youtube.com/watch?v=55QWsm1itKo">Intro to Audio Processing for Deep Learning</a></strong> and the notebook <code>notebooks/intro_to_audio_processing.ipynb</code>.
 These notes go deeper than the video on the concepts that are usually hard the first time: <strong>frequency, the Fourier transform, Nyquist/aliasing, spectrograms, the mel scale, and Griffin-Lim.</strong></p>
+<p><strong>How to use these notes.</strong> Open the <strong>interactive HTML version</strong> (<code>notes/audio_processing_notes.html</code>) — it has live widgets (drag a slider, watch the FFT change), quizzes with hidden answers, and a progress tracker. This Markdown version is the same text for GitHub reading. Throughout you will find four kinds of boxes: <strong>Key takeaway</strong> (what to remember), <strong>Researcher's corner</strong> (the open questions and the papers behind each idea), <strong>Industry corner</strong> (how this is actually used in production audio/TTS systems), and <strong>Common mistake</strong> (bugs that cost real teams real weeks). The final section is a roadmap from "I understand spectrograms" to "I can do audio research / build an audio product."</p>
 </blockquote>
 <hr />
 <h2 id="table-of-contents">Table of Contents</h2>
@@ -143,6 +196,7 @@ These notes go deeper than the video on the concepts that are usually hard the f
 <li><a href="#21-torchaudio-cheat-sheet">torchaudio cheat sheet</a></li>
 <li><a href="#22-common-pitfalls-and-quick-self-test">Common pitfalls and quick self-test</a></li>
 <li><a href="#23-parameter--keyword-glossary--what-n_fft-hop_length-etc-actually-mean">Parameter &amp; keyword glossary — what <code>n_fft</code>, <code>hop_length</code>, etc. actually mean</a></li>
+<li><a href="#24-from-learner-to-researcher--builder--the-roadmap">From learner to researcher / builder — the roadmap</a></li>
 </ol>
 <hr />
 <h2 id="1-why-audio-pre-processing-matters">1. Why audio pre-processing matters</h2>
@@ -215,6 +269,9 @@ These notes go deeper than the video on the concepts that are usually hard the f
 </tr>
 </tbody>
 </table>
+<blockquote class="callout takeaway"><p><span class="callout-label">Key takeaway</span>An audio file is a 1-D array of floats plus one integer (the sampling rate). Everything else — pitch, words, timbre — is <em>pattern in how those floats change</em>, and the rest of these notes is about making that pattern explicit.</p></blockquote>
+<blockquote class="callout industry"><p><span class="callout-label">Industry corner</span>Production systems pick one sampling rate and <em>enforce</em> it at ingestion. Speech recognition almost universally runs at 16 kHz (Whisper, wav2vec 2.0, most ASR APIs). Text-to-speech has drifted upward for quality: LJSpeech-era models used 22.05 kHz, modern neural TTS (HiFi-GAN, VITS, most commercial voices) ships at 24 kHz or 44.1/48 kHz. The single most common data bug in audio teams is a dataset with <em>mixed</em> sampling rates — or worse, 8 kHz telephone audio that was upsampled to 16 kHz: the header says 16 kHz but there is no content above 4 kHz, and a model trained on it learns to expect that hole. Always plot a spectrogram of a random sample from every new data source and look at where the energy stops.</p>
+</blockquote>
 <hr />
 <h2 id="3-frequency-the-basics-the-easy-way">3. Frequency — the basics, the easy way</h2>
 <p><strong>Frequency = how many times something repeats per second.</strong> Its unit is <strong>Hertz (Hz) = cycles per second</strong>.</p>
@@ -257,6 +314,8 @@ These notes go deeper than the video on the concepts that are usually hard the f
 </tr>
 </tbody>
 </table>
+<div class="widget" data-widget="sine-explorer"></div>
+
 <p>Concrete examples:</p>
 <ul>
 <li>A <strong>1 Hz</strong> sine wave completes exactly <strong>1 full up-down cycle</strong> in one second.</li>
@@ -272,6 +331,8 @@ These notes go deeper than the video on the concepts that are usually hard the f
 </ul>
 <p>Here are 1 Hz / 4 Hz / 8 Hz sinusoids side by side (generated by <code>src/fourier_demo.py</code>) — count the cycles in one second:</p>
 <p><img alt="Sinusoids at 1, 4 and 8 Hz" src="../assets/01_sinusoid_basics.png" /></p>
+<blockquote class="callout takeaway"><p><span class="callout-label">Key takeaway</span>A sinusoid is fully described by three numbers: amplitude (loudness), frequency (pitch), phase (start offset). Fourier analysis will claim that <em>every</em> sound is a sum of these — so these three numbers per frequency are the atoms of everything that follows.</p>
+</blockquote>
 <hr />
 <h2 id="4-two-different-per-second-numbers-dont-mix-them-up">4. Two different "per second" numbers (don't mix them up!)</h2>
 <p>This is the <strong>single most common beginner confusion</strong>, so it gets its own section.</p>
@@ -306,6 +367,8 @@ These notes go deeper than the video on the concepts that are usually hard the f
 </ul>
 <p>If the camera films too slowly, the fan can look like it's spinning slowly, backwards, or standing still — that visual illusion <strong>is literally aliasing</strong>, the same phenomenon we will hit in <a href="#9-aliasing--the-downsampling-trap-deep-dive">section 9</a>.</p>
 <p>The two numbers are linked by one rule — the <strong>Nyquist theorem</strong>: a recording at \(f_s\) samples/second can only faithfully contain frequencies up to \(f_s / 2\) cycles/second.</p>
+<blockquote class="callout takeaway"><p><span class="callout-label">Key takeaway</span>"Hz" is overloaded. Sampling rate = how fast we <em>measured</em>. Frequency = how fast the <em>sound</em> oscillates. When someone says "16 kHz audio" they mean the first; when they say "a 440 Hz tone" they mean the second. Nyquist ties them together: the first must be more than twice the largest value of the second.</p>
+</blockquote>
 <hr />
 <h2 id="5-the-fourier-transform-intuition-first">5. The Fourier Transform — intuition first</h2>
 <h3 id="the-paint-mixing-analogy">The paint-mixing analogy</h3>
@@ -337,7 +400,9 @@ These notes go deeper than the video on the concepts that are usually hard the f
 freqs = np.fft.fftfreq(len(t), d=t[1]-t[0])  # which frequency each entry corresponds to
 </code></pre>
 <blockquote>
-<p><strong>Highly recommended:</strong> the <a href="https://youtu.be/spUNpyF58BY">3Blue1Brown video on the Fourier Transform</a> — the best visual explanation in existence.</p>
+<p><strong>Highly recommended:</strong> the <a href="https://youtu.be/spUNpyF58BY">3Blue1Brown video on the Fourier Transform</a> — the best visual explanation in existence.</p></blockquote>
+<blockquote class="callout deep"><p><span class="callout-label">Deep dive</span>The DFT is a <strong>change of basis</strong>. Your \(N\) samples are a vector in \(\mathbb{R}^N\) written in the "one spike per time step" basis. The DFT rewrites the <em>same vector</em> in the "one sinusoid per frequency" basis. Concretely it is a matrix multiply, \(X = F x\), where \(F\) is the \(N \times N\) matrix whose row \(k\) is the probe wave \(e^{-j2\pi kn/N}\). Because that matrix is orthogonal (up to a scale), nothing is lost and the inverse is just its conjugate transpose — which is why section 11's round trip is exact. The "Fast" in FFT is only about <em>computing</em> \(Fx\) in \(O(N \log N)\) instead of \(O(N^2)\); the mathematics is identical.</p></blockquote>
+<blockquote class="callout research"><p><span class="callout-label">Researcher&#x27;s corner</span>Once you see the DFT as a fixed linear layer with sinusoid filters, a natural question follows: <em>why fixed?</em> A 1-D convolution over the waveform with learned kernels is the same operation with trainable filters, and several lines of research replace the STFT+mel front-end with learned ones — <strong>SincNet</strong> (Ravanelli &amp; Bengio, 2018: convolutions constrained to be band-pass sinc filters), <strong>LEAF</strong> (Zeghidour et al., 2021: a fully learnable mel-like front-end), and the raw-waveform encoders of <strong>wav2vec 2.0</strong> and <strong>EnCodec</strong>. The empirical finding, repeated across a decade of papers: learned front-ends <em>approximately re-discover</em> mel-like filterbanks, and beat hand-designed mel only marginally and only with enough data. That is strong evidence that the classical pipeline you are learning encodes real perceptual prior knowledge — and a good example of the kind of question ("is this hand-designed component actually optimal?") that makes for a research project.</p>
 </blockquote>
 <hr />
 <h2 id="6-reading-the-fft-output-complex-numbers-magnitude-phase">6. Reading the FFT output: complex numbers, magnitude, phase</h2>
@@ -414,6 +479,10 @@ plt.plot(freqs[:half], np.abs(y_fft)[:half])   # positive frequencies only
 </tbody>
 </table>
 <p><strong>Why 44,100 and not exactly 40,000?</strong> Human hearing tops out around 20,000 Hz, so 40,000 samples/s is the <em>theoretical</em> minimum. Real-world hardware isn't perfect, so the industry standard adds a <strong>safety buffer</strong>: 44,100 Hz.</p>
+<div class="widget" data-widget="sampling-aliasing"></div>
+
+<blockquote class="callout takeaway"><p><span class="callout-label">Key takeaway</span>Two samples per cycle is the hard floor. Below it, the recording doesn't lose the frequency — it <em>invents a wrong one</em>. Sampling rate ÷ 2 is the ceiling on what your data can honestly contain.</p>
+</blockquote>
 <hr />
 <h2 id="9-aliasing-the-downsampling-trap-deep-dive">9. Aliasing — the downsampling trap (deep dive)</h2>
 <h3 id="what-aliasing-is">What aliasing is</h3>
@@ -447,12 +516,19 @@ plt.plot(freqs[:half], np.abs(y_fft)[:half])   # positive frequencies only
 audio_16k = resampler(audio_24k)   # anti-aliasing filter is built in
 </code></pre>
 <p><strong>Rule of thumb:</strong> know the highest frequency that matters in your data, and never let the target sampling rate drop below twice that.</p>
+<blockquote class="callout mistake"><p><span class="callout-label">Common mistake</span><code>audio[::3]</code> in a data loader "because it's faster." It is faster, and it silently corrupts every high-frequency consonant in your dataset. The model still trains, the loss still falls, and you only find out weeks later when quality plateaus. Resampling with a proper filter (<code>torchaudio.transforms.Resample</code>, <code>librosa.resample</code>, <code>soxr</code>) costs almost nothing — do it once at preprocessing time and cache the result.</p></blockquote>
+<blockquote class="callout industry"><p><span class="callout-label">Industry corner</span>Resamplers are not all equal. <code>soxr</code> and <code>torchaudio</code>'s sinc-interpolation resampler are high quality; older <code>scipy.signal.resample</code> (FFT-based) rings badly at edges; and some fast "linear interpolation" resamplers alias just as much as slicing. Teams that ship audio products standardize on one resampler and one sampling rate at <em>ingestion</em>, log the original rate as metadata, and refuse mixed-rate batches. When you inherit a dataset, the first diagnostic is a spectrogram: audio that was upsampled from a lower rate has a hard horizontal ceiling where energy stops (4 kHz for telephone audio) — a fingerprint you will learn to spot in one glance.</p>
+</blockquote>
 <hr />
 <h2 id="10-sum-of-sinusoids-un-mixing-the-paint">10. Sum of sinusoids: un-mixing the paint</h2>
 <p>The real magic: mix <strong>several</strong> sinusoids — say 5 Hz + 20 Hz + 40 Hz — into one messy-looking waveform. In the time domain it looks like noise-ish wiggles. Run the FFT:</p>
 <p><strong>Three clean spikes: at 5 Hz, 20 Hz, and 40 Hz.</strong> Add a 250 Hz component too → a fourth spike appears exactly at 250 Hz:</p>
 <p><img alt="FFT un-mixes a sum of sinusoids into individual spikes" src="../assets/03_fft_sum_of_sinusoids.png" /></p>
 <p>The Fourier transform perfectly un-mixed the recipe. This is precisely what it does to real speech, where hundreds of frequency components (pitch, harmonics, consonant noise, room reverb…) mix together in the air and in the microphone.</p>
+<div class="widget" data-widget="fourier-mixer"></div>
+
+<blockquote class="callout tryit"><p><span class="callout-label">Try it</span>In the mixer above, set two sines to nearby frequencies (say 20 and 21 Hz). The FFT still separates them because the recording is 2 s long, giving 0.5 Hz bins. Now imagine a 0.05 s window instead: the bins would be 20 Hz wide and the two tones would merge into one blob. That is the time–frequency trade-off of section 14, and you just felt it.</p>
+</blockquote>
 <hr />
 <h2 id="11-the-inverse-fourier-transform">11. The Inverse Fourier Transform</h2>
 <p>The FT is a <strong>lossless, reversible change of viewpoint</strong> — like translating a book between two languages with zero information lost:</p>
@@ -507,6 +583,8 @@ y_back = np.fft.ifft(y_fft)    # frequency domain -&gt; time domain
 <li><strong>FFT each chunk</strong> → one column of frequency energies for that moment in time.</li>
 <li><strong>Stack columns</strong> left to right → a 2-D array: the <strong>spectrogram</strong>.</li>
 </ol>
+<blockquote class="callout deep"><p><span class="callout-label">Deep dive</span>see <a href="#23-parameter--keyword-glossary--what-n_fft-hop_length-etc-actually-mean">§23 — Parameter &amp; keyword glossary</a> for detailed explanations of <code>n_fft</code>, <code>hop_length</code>, <code>nperseg</code>, <code>noverlap</code>, <code>n_mels</code>, <code>n_stft</code>, and how they connect.</p>
+</blockquote>
 <h3 id="how-to-read-a-spectrogram">How to read a spectrogram</h3>
 <p>A spectrogram is <strong>a picture of sound</strong>:</p>
 <ul>
@@ -525,6 +603,10 @@ spec = torchaudio.transforms.Spectrogram(n_fft=400, hop_length=200)(audio)
 </code></pre>
 <p>Plot the <strong>phase</strong> image and you'll see what looks like pure noise — no visible structure. That's why everyone works with the magnitude spectrogram. (The phase still matters for <em>reconstruction</em> — <a href="#18-going-backwards-the-phase-problem-and-griffin-lim">section 18</a>.)</p>
 <p><img alt="STFT magnitude has clear structure, phase looks like noise" src="../assets/06_stft_magnitude_vs_phase.png" /></p>
+<div class="widget" data-widget="stft-shapes"></div>
+
+<blockquote class="callout takeaway"><p><span class="callout-label">Key takeaway</span>A spectrogram is the FFT applied to a sliding window, stacked into an image: rows = frequency bins (<code>n_fft//2 + 1</code>), columns = time frames (<code>≈ samples / hop_length</code>). Every audio model that "looks at" sound is looking at this image or its mel-compressed cousin.</p>
+</blockquote>
 <hr />
 <h2 id="14-the-timefrequency-resolution-trade-off">14. The time–frequency resolution trade-off</h2>
 <p>You cannot have perfect time resolution <em>and</em> perfect frequency resolution at once. (This is mathematically the same uncertainty principle as in quantum mechanics.)</p>
@@ -561,6 +643,10 @@ spec = torchaudio.transforms.Spectrogram(n_fft=400, hop_length=200)(audio)
 <p><strong>Why, intuitively:</strong> to <em>measure</em> a frequency you must watch the wave complete several cycles — a longer window sees more cycles, so it pins the frequency down precisely. But a longer window blurs <em>when</em> things happened, because everything inside one window collapses into one column. Short window = the reverse.</p>
 <p>Here is the same speech clip at window sizes 16, 400, and 10,000 — watch the detail move between the axes:</p>
 <p><img alt="Time-frequency trade-off at three window sizes" src="../assets/07_window_size_tradeoff.png" /></p>
+<div class="widget" data-widget="stft-explorer"></div>
+
+<blockquote class="callout research"><p><span class="callout-label">Researcher&#x27;s corner</span>The trade-off is not an engineering limitation but a theorem: the <strong>Gabor limit</strong> \(\Delta t \cdot \Delta f \geq \frac{1}{4\pi}\) — a signal cannot be simultaneously localized in time and frequency beyond that bound (it is literally the Heisenberg uncertainty principle with time/frequency in place of position/momentum). Research responses: (1) <strong>multi-resolution analysis</strong> — compute several STFTs at different window sizes and let the model use all of them; this is how modern vocoders are <em>trained</em>: HiFi-GAN, BigVGAN and Vocos use a <strong>multi-resolution STFT loss</strong> (e.g. windows 512/1024/2048) so that neither transients nor harmonics are neglected. (2) <strong>Wavelets / constant-Q transforms</strong> — windows whose length <em>varies with frequency</em> (long for bass, short for treble), matching how the ear and music both behave. (3) <strong>Learn the window</strong> as part of the network. A genuinely open question: what is the right time–frequency tiling for <em>generation</em> as opposed to <em>recognition</em>? Nobody has a principled answer yet.</p>
+</blockquote>
 <p><strong>Practical defaults for 16 kHz speech:</strong> <code>n_fft = 400</code> (25 ms) with <code>hop_length = 200</code> (later <code>1024 / 512</code> for mel spectrograms). These defaults are battle-tested; picking them is "a little bit of an art," but start here.</p>
 <hr />
 <h2 id="15-windowing-functions-and-overlap">15. Windowing functions and overlap</h2>
@@ -578,6 +664,11 @@ spec = torchaudio.transforms.Spectrogram(n_fft=400, hop_length=200)(audio)
 </code></pre>
 <p>Handy facts: +6 dB ≈ double the amplitude; +20 dB = 10× the amplitude. After dB conversion, the spectrogram suddenly shows all its structure — harmonics, formants, noise floors. <strong>Always convert to dB before visualizing or feeding spectrograms to a model.</strong></p>
 <p><img alt="Raw amplitudes look black; the same data in dB shows all structure" src="../assets/08_db_scaling.png" /></p>
+<div class="widget" data-widget="db-explorer"></div>
+
+<blockquote class="callout mistake"><p><span class="callout-label">Common mistake</span>Mixing up the two dB formulas. <code>20·log10</code> applies to <strong>amplitude</strong> (|X|); <code>10·log10</code> applies to <strong>power</strong> (|X|²). They give identical results <em>if</em> you feed the right quantity, and a silent 2× error in every value if you don't. torchaudio's <code>AmplitudeToDB(stype="power")</code> is the default and expects a power spectrogram — <code>Spectrogram(power=2.0)</code>, also the default — so the defaults agree; the moment you pass <code>power=1.0</code> (magnitude) you must switch to <code>stype="magnitude"</code>. Also note the <code>top_db=80</code> clamp: it floors everything more than 80 dB below the peak, which is usually what you want but will erase a quiet tail if you don't know it's there.</p></blockquote>
+<blockquote class="callout takeaway"><p><span class="callout-label">Key takeaway</span>Loudness perception is logarithmic, and so is the useful dynamic range of audio. A linear scale gives all its resolution to the loudest 1%; dB spreads it evenly. This is not a visualization nicety: models trained on linear magnitudes learn loud vowels and ignore quiet consonants. Use log/dB features as the model's <em>target</em>, always.</p>
+</blockquote>
 <hr />
 <h2 id="17-the-mel-scale-and-mel-spectrograms">17. The Mel scale and Mel spectrograms</h2>
 <h3 id="human-pitch-perception-is-not-linear">Human pitch perception is not linear</h3>
@@ -593,6 +684,8 @@ spec = torchaudio.transforms.Spectrogram(n_fft=400, hop_length=200)(audio)
 </ul>
 <p>Equal steps in <strong>mel</strong> ≈ equal steps in <strong>perceived pitch</strong>. (Two slightly different standard variants exist: <strong>HTK</strong> and <strong>Slaney</strong> — just be consistent; the notebook uses Slaney.)</p>
 <p><img alt="The Hz to mel curve: steep at low frequencies, flat at high ones" src="../assets/09_mel_scale_curve.png" /></p>
+<div class="widget" data-widget="mel-scale"></div>
+
 <h3 id="mel-spectrogram-spectrogram-mel-spaced-frequency-bins">Mel spectrogram = spectrogram + mel-spaced frequency bins</h3>
 <p>Take the ordinary spectrogram, then pool its hundreds of linear frequency bins into a small number of <strong>mel bins</strong> (triangular overlapping filters): dense narrow bins at low frequencies (where our ears are sharp), wide sparse bins at high frequencies (where they're not).</p>
 <pre><code class="language-python">mel_transform = torchaudio.transforms.MelSpectrogram(
@@ -611,6 +704,9 @@ mel_db  = torchaudio.transforms.AmplitudeToDB()(mel_spec)
 <li>The mapping is <strong>many-to-one</strong> (several linear bins pour into one mel bin), so it is <strong>not perfectly invertible</strong> — information is genuinely discarded. This matters for reconstruction (next section).</li>
 <li>Why models love mel spectrograms: smaller input (128 rows instead of 513), and resolution is allocated where human-relevant information actually lives. The de-facto standard input for speech models.</li>
 </ul>
+<blockquote class="callout industry"><p><span class="callout-label">Industry corner</span>Mel parameters are a <em>contract</em> between components, and breaking the contract is the #1 bug in TTS deployments. A TTS acoustic model (Tacotron2, FastSpeech2, VITS) predicts mels; a separately trained vocoder (HiFi-GAN) consumes them. If they disagree on <code>n_mels</code>, <code>n_fft</code>, <code>hop_length</code>, <code>fmin/fmax</code>, <code>mel_scale</code> (HTK vs Slaney), log base, or normalization, you get audio that is anywhere from "slightly muffled" to "screeching garbage" — with no error message. Real-world numbers: Tacotron2/HiFi-GAN use 80 mels at 22.05 kHz with hop 256; Whisper uses 80 mels at 16 kHz (128 in <code>large-v3</code>); many 24 kHz TTS stacks use 100 mels with hop 256. When you pair a pretrained vocoder with your own model, copy its exact feature config — do not "improve" it.</p></blockquote>
+<blockquote class="callout research"><p><span class="callout-label">Researcher&#x27;s corner</span>Mel was fit to 1937 psychoacoustic data (Stevens, Volkmann &amp; Newman) with ~a dozen listeners. It has survived because it is <em>good enough</em> and universal, not because it is optimal. Three live research directions: (1) <strong>learned front-ends</strong> (LEAF, SincNet) that start from mel and adapt — they consistently converge to something mel-like, which is both reassuring and a little disappointing; (2) <strong>replacing mel entirely with neural codec tokens</strong> (EnCodec, SoundStream, DAC) — the intermediate representation becomes discrete and <em>learned</em>, which is the foundation of every LLM-style TTS system (VALL-E, CosyVoice, Fish-Speech); (3) <strong>bandwidth</strong>: mel with <code>fmax=8000</code> throws away 8–11 kHz, which is fine for intelligibility but audibly dulls "presence" and breathiness — one reason modern TTS moved to 24–48 kHz and 100+ mels. If you want a first research question you can actually test on a laptop: <em>how few mel bins can a vocoder tolerate before listeners notice?</em></p>
+</blockquote>
 <hr />
 <h2 id="18-going-backwards-the-phase-problem-and-griffin-lim">18. Going backwards: the phase problem and Griffin-Lim</h2>
 <h3 id="why-we-need-to-invert-at-all">Why we need to invert at all</h3>
@@ -644,6 +740,9 @@ waveform_rec = griffin_lim(inv_mel(mel_spectrogram))
 </code></pre>
 <p><strong>Expected result:</strong> clearly intelligible speech that sounds <strong>slightly robotic/metallic</strong>. Two error sources: the lossy mel→linear step, and Griffin-Lim's phase being an iterative approximation, never the true phase.</p>
 <p><img alt="Mel spectrogram, recovered linear spectrogram, and Griffin-Lim waveform" src="../assets/10_mel_and_reconstruction.png" /></p>
+<blockquote class="callout takeaway"><p><span class="callout-label">Key takeaway</span>Going forward (waveform → mel) throws away two things: phase, and fine frequency detail between mel bins. Going backward must <em>guess</em> both. Griffin-Lim guesses phase by demanding consistency between overlapping windows; the pseudo-inverse guesses frequency detail by least squares. Both guesses are audible — that metallic timbre <em>is</em> the sound of missing information.</p></blockquote>
+<blockquote class="callout research"><p><span class="callout-label">Researcher&#x27;s corner</span>"Recover a signal from the magnitude of its STFT" is the <strong>phase retrieval</strong> problem, and it is a real research field (it also appears in X-ray crystallography and optics). Griffin-Lim (1984) is alternating projections; <strong>Fast Griffin-Lim</strong> (Perraudin et al., 2013) adds momentum and converges in a fraction of the iterations; deep-learning variants learn the phase directly. The current practical answer in TTS is to stop guessing and <em>predict</em> phase: <strong>Vocos</strong> (2023) and <strong>iSTFTNet</strong> output magnitude <em>and</em> phase from a mel and finish with a plain inverse STFT — no iterations, no autoregression, faster than HiFi-GAN with comparable quality. An accessible research question here: Griffin-Lim's quality depends heavily on the initial phase guess — can a tiny network produce a better <em>initialization</em> that lets 5 iterations do the work of 100?</p>
+</blockquote>
 <hr />
 <h2 id="19-neural-vocoders">19. Neural vocoders</h2>
 <p>Griffin-Lim is the classical baseline, but modern systems use <strong>neural vocoders</strong> — networks trained to map mel spectrograms straight to waveforms:</p>
@@ -652,6 +751,8 @@ waveform_rec = griffin_lim(inv_mel(mel_spectrogram))
 <li><strong>WaveNet / WaveGlow / MelGAN</strong> — earlier landmark designs.</li>
 </ul>
 <p>Because a vocoder is <em>trained on real audio</em>, it <strong>learns</strong> what plausible phase (and the detail lost by mel binning) should look like, instead of solving for it iteratively. Result: dramatically more natural audio. Modern TTS = (text → mel spectrogram model) + (mel spectrogram → waveform vocoder).</p>
+<blockquote class="callout industry"><p><span class="callout-label">Industry corner</span>Vocoder choice in 2024–2026, roughly: <strong>HiFi-GAN</strong> is the default you will find in most open TTS repos (fast, good, well understood); <strong>BigVGAN</strong> (NVIDIA) generalizes better to unseen speakers and music at higher compute; <strong>Vocos</strong> is the speed king (inverse-STFT head, no upsampling stack) and runs comfortably faster than real time on CPU — relevant if you are shipping on-device. The <em>newest</em> systems (CosyVoice, Fish-Speech, most LLM-based TTS) skip mels entirely and have a neural codec decoder play the vocoder role. For a product, the vocoder decides your latency floor and your CPU bill; for a researcher it is the component where "sounds human" is actually won or lost, and the metric that matters is a listening test (MOS), not a loss curve.</p>
+</blockquote>
 <hr />
 <h2 id="20-the-full-pipeline-summary-diagram">20. The full pipeline — summary diagram</h2>
 <pre><code class="language-text">                         FOURIER TRANSFORM (all time info lost -&gt; rarely used alone)
@@ -735,15 +836,39 @@ waveform_rec = griffin_lim(inv_mel(mel_spectrogram))
 <li><strong>Expecting mel → audio to be perfect.</strong> Mel binning is many-to-one and phase is gone; reconstruction is inherently approximate.</li>
 <li><strong>Assuming sampling rates match.</strong> Always check the file's actual rate against what the model expects; resample if needed.</li>
 </ol>
-<h3 id="self-test-answers-by-working-through-the-notebook">Self-test (answers by working through the notebook)</h3>
-<ol>
-<li>An audio file has 32,000 samples and lasts 2 seconds. What is its sampling rate, and what is the highest frequency it can represent?</li>
-<li>You slice-downsample a 60 Hz sinusoid recorded at 200 samples/s by a factor of 2. Does it alias? What about a factor of 4 — and at what frequency does the spike appear?</li>
-<li>Why does an STFT with <code>n_fft=400</code> produce 201 frequency bins?</li>
-<li>Give one reason to prefer a large STFT window and one to prefer a small one.</li>
-<li>Why can't you run an inverse STFT directly on a magnitude spectrogram, and what property of overlapping windows lets Griffin-Lim work anyway?</li>
-<li>Why do mel bins get wider as frequency increases?</li>
-</ol>
+<h3 id="self-test-try-each-one-before-opening-the-answer">Self-test — try each one before opening the answer</h3>
+<details>
+<summary>1. An audio file has 32,000 samples and lasts 2 seconds. What is its sampling rate, and what is the highest frequency it can represent?</summary>
+<p>Sampling rate = samples ÷ seconds = 32,000 / 2 = <strong>16,000 Hz</strong>. Nyquist = 16,000 / 2 = <strong>8,000 Hz</strong> — enough for speech, not for music.</p>
+</details>
+<details>
+<summary>2. You slice-downsample a 60 Hz sinusoid recorded at 200 samples/s by a factor of 2. Does it alias? What about a factor of 4 — and at what frequency does the spike appear?</summary>
+<p>Factor 2 → 100 samples/s → Nyquist 50 Hz &lt; 60 Hz → <strong>aliases</strong>, appearing at |60 − 100| = <strong>40 Hz</strong>. Factor 4 → 50 samples/s → Nyquist 25 Hz → aliases again; fold 60 into [0, 25]: |60 − 50| = 10 Hz → spike at <strong>10 Hz</strong>. (Trick in the question: even factor 2 is unsafe here — always compute the new Nyquist.)</p>
+</details>
+<details>
+<summary>3. Why does an STFT with `n_fft=400` produce 201 frequency bins?</summary>
+<p>The FFT of 400 <em>real</em> samples is conjugate-symmetric: the second half mirrors the first. Unique information = 400/2 = 200 positive-frequency bins <strong>+ 1</strong> for the DC (0 Hz) bin = <strong>201</strong> = <code>n_fft // 2 + 1</code>.</p>
+</details>
+<details>
+<summary>4. Give one reason to prefer a large STFT window and one to prefer a small one.</summary>
+<p><strong>Large</strong>: finer frequency resolution — more bins, each covering fewer Hz — so closely spaced harmonics separate. <strong>Small</strong>: finer time resolution — you can tell <em>when</em> a click or consonant burst happened. You cannot have both (Gabor limit); speech pipelines settle at 25–64 ms.</p>
+</details>
+<details>
+<summary>5. Why can't you run an inverse STFT directly on a magnitude spectrogram, and what property of overlapping windows lets Griffin-Lim work anyway?</summary>
+<p>The inverse STFT needs the full complex values (magnitude <em>and</em> phase); a magnitude spectrogram has thrown the phase away, so there are infinitely many waveforms consistent with it. Because windows <strong>overlap</strong>, neighbouring frames share samples, so their phases cannot be arbitrary — only mutually <em>consistent</em> phases survive an STFT → iSTFT → STFT round trip. Griffin-Lim iterates that round trip, snapping magnitudes back to the target each time, until a consistent phase emerges.</p>
+</details>
+<details>
+<summary>6. Why do mel bins get wider as frequency increases?</summary>
+<p>Because human pitch perception is roughly logarithmic above ~1 kHz: we hear <em>ratios</em>, so a fixed Hz difference feels smaller the higher you go. Mel spacing allocates many narrow bins where the ear is sharp (low Hz) and few wide bins where it is dull (high Hz), spending resolution where it is perceptually useful.</p>
+</details>
+<details>
+<summary>7. (Industry) A colleague's TTS model sounds muffled with a pretrained HiFi-GAN. Loss curves look fine. Name three feature-config parameters you would check first.</summary>
+<p><code>n_mels</code>, <code>fmax</code> (e.g. 8000 vs 11025 vs 12000), and the <strong>mel scale / log convention</strong> (HTK vs Slaney; natural log vs log10; whether a clamp/normalization was applied). Also <code>hop_length</code>/<code>n_fft</code> and sampling rate. Any mismatch between the acoustic model's features and the vocoder's training features produces exactly this symptom with no error.</p>
+</details>
+<details>
+<summary>8. (Research) Learned front-ends like LEAF tend to converge to mel-like filterbanks. What does that tell you, and what is one way you could turn it into an experiment?</summary>
+<p>It suggests mel encodes a real prior about speech/hearing that data alone re-discovers — i.e. the hand-designed pipeline is close to what the task wants. Experiment: train a small classifier or vocoder with (a) fixed mel, (b) a learnable filterbank initialised at mel, (c) a learnable filterbank initialised randomly; compare accuracy/quality and <em>plot the learned centre frequencies</em> against the mel curve. The gap between (b) and (c), and how far (c) drifts toward mel, is the finding.</p>
+</details>
 <hr />
 <h2 id="23-parameter-keyword-glossary-what-n_fft-hop_length-etc-actually-mean">23. Parameter &amp; keyword glossary — what <code>n_fft</code>, <code>hop_length</code>, etc. actually mean</h2>
 <p>When you first open torchaudio or scipy code, you see a wall of short names: <code>n_fft</code>, <code>hop_length</code>, <code>n_mels</code>, <code>n_stft</code>, <code>nperseg</code>, <code>noverlap</code>. They are not arbitrary — each one controls <strong>how long a slice of audio is</strong>, <strong>how far you slide that slice</strong>, <strong>how many frequency rows you get</strong>, or <strong>how the result is scaled</strong>. This section is the decoder ring.</p>
@@ -1165,6 +1290,174 @@ wave   = T.GriffinLim(n_fft=1024, hop_length=512, n_iter=100)(linear)
 </code></pre>
 <p>Every highlighted parameter must stay consistent across the forward and inverse path.</p>
 <hr />
+<h2 id="24-from-learner-to-researcher-builder-the-roadmap">24. From learner to researcher / builder — the roadmap</h2>
+<p>Everything above is the <em>shared vocabulary</em> of audio ML. This section is about what to do with it if your goal is to publish audio research, work at an audio/speech company, or build your own TTS product.</p>
+<h3 id="241-the-mental-checklist-for-any-audio-pipeline">24.1 The mental checklist for any audio pipeline</h3>
+<p>Before training anything, be able to answer these from memory for your data and model — they are the questions a senior audio engineer asks in the first five minutes of a design review:</p>
+<table>
+<thead>
+<tr>
+<th>Question</th>
+<th>Why it matters</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>What is the sampling rate, and is it <em>actually</em> that (or upsampled)?</td>
+<td>Nyquist ceiling; hidden bandwidth holes</td>
+</tr>
+<tr>
+<td><code>n_fft</code>, <code>hop_length</code>, window → what are the frame rate (frames/s) and Hz/bin?</td>
+<td>Every downstream shape and every latency number derives from these</td>
+</tr>
+<tr>
+<td>Linear or mel? How many mels, <code>fmin/fmax</code>, which mel scale?</td>
+<td>Contract with the vocoder / pretrained model</td>
+</tr>
+<tr>
+<td>Amplitude or power? dB of what, with which log, clamped how, normalized to what range?</td>
+<td>Loss scale and convergence (see the Tacotron2 module on [-4, 4])</td>
+</tr>
+<tr>
+<td>Where is phase discarded, and what recovers it?</td>
+<td>Determines reconstruction quality ceiling</td>
+</tr>
+<tr>
+<td>Which components must share the same feature config?</td>
+<td>The most common deployment bug</td>
+</tr>
+</tbody>
+</table>
+<h3 id="242-evaluation-how-the-field-measures-sounds-good">24.2 Evaluation — how the field measures "sounds good"</h3>
+<p>Loss curves do not measure audio quality. Learn these; you will report them in every paper and every product review:</p>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Measures</th>
+<th>Used for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>MOS</strong> (Mean Opinion Score, 1–5)</td>
+<td>Human-rated naturalness; the gold standard</td>
+<td>TTS, vocoders, enhancement. Expensive; ~20+ raters per sample</td>
+</tr>
+<tr>
+<td><strong>CMOS / MUSHRA</strong></td>
+<td>Paired or multi-stimulus human comparison</td>
+<td>Fine-grained A/B between two systems</td>
+</tr>
+<tr>
+<td><strong>UTMOS / DNSMOS / NISQA</strong></td>
+<td>Neural <em>predictors</em> of MOS</td>
+<td>Cheap proxy during development</td>
+</tr>
+<tr>
+<td><strong>MCD</strong> (Mel Cepstral Distortion)</td>
+<td>Spectral distance to reference, in dB</td>
+<td>TTS when a reference recording exists</td>
+</tr>
+<tr>
+<td><strong>PESQ / STOI</strong></td>
+<td>Perceptual quality / intelligibility vs clean reference</td>
+<td>Speech enhancement, codecs</td>
+</tr>
+<tr>
+<td><strong>SI-SDR</strong></td>
+<td>Signal-to-distortion ratio, scale-invariant</td>
+<td>Source separation, enhancement</td>
+</tr>
+<tr>
+<td><strong>WER of an ASR on the output</strong></td>
+<td>Intelligibility proxy</td>
+<td>TTS: run Whisper on synthesized speech, compare to input text</td>
+</tr>
+<tr>
+<td><strong>Speaker similarity (cosine on speaker embeddings)</strong></td>
+<td>Did the voice match?</td>
+<td>Voice cloning</td>
+</tr>
+<tr>
+<td><strong>RTF</strong> (real-time factor)</td>
+<td>Seconds of compute per second of audio</td>
+<td>Deployment; &lt; 1 means faster than real time</td>
+</tr>
+</tbody>
+</table>
+<h3 id="243-datasets-you-should-know">24.3 Datasets you should know</h3>
+<table>
+<thead>
+<tr>
+<th>Dataset</th>
+<th>What</th>
+<th>Typical use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>LJSpeech</strong></td>
+<td>24 h, one speaker, 22.05 kHz, public domain</td>
+<td>The "MNIST of TTS" — first model, every tutorial</td>
+</tr>
+<tr>
+<td><strong>LibriTTS / LibriTTS-R</strong></td>
+<td>585 h, 2,456 speakers, 24 kHz, from audiobooks</td>
+<td>Multi-speaker TTS, vocoders</td>
+</tr>
+<tr>
+<td><strong>VCTK</strong></td>
+<td>110 speakers, 44 h, studio quality</td>
+<td>Voice conversion, multi-speaker</td>
+</tr>
+<tr>
+<td><strong>LibriSpeech</strong></td>
+<td>1,000 h read speech, 16 kHz</td>
+<td>ASR benchmark</td>
+</tr>
+<tr>
+<td><strong>Common Voice</strong></td>
+<td>Crowd-sourced, many languages</td>
+<td>Multilingual ASR/TTS; noisy</td>
+</tr>
+<tr>
+<td><strong>Emilia / Libriheavy / GigaSpeech</strong></td>
+<td>50k–100k h in-the-wild</td>
+<td>Training LLM-scale TTS</td>
+</tr>
+<tr>
+<td><strong>VoxCeleb</strong></td>
+<td>Speaker identity, in the wild</td>
+<td>Speaker verification / embeddings</td>
+</tr>
+</tbody>
+</table>
+<h3 id="244-papers-that-define-the-vocabulary-read-in-this-order">24.4 Papers that define the vocabulary (read in this order)</h3>
+<ol>
+<li>Shannon (1949), <em>Communication in the Presence of Noise</em> — sampling theorem, one readable paper.</li>
+<li>Stevens, Volkmann &amp; Newman (1937), <em>A Scale for the Measurement of the Psychological Magnitude Pitch</em> — where mel comes from; see how little data it rests on.</li>
+<li>Griffin &amp; Lim (1984), <em>Signal Estimation from Modified Short-Time Fourier Transform</em> — phase retrieval by alternating projections.</li>
+<li>Shen et al. (2018), <em>Natural TTS Synthesis by Conditioning WaveNet on Mel Spectrogram Predictions</em> — Tacotron2; the mel-as-interface convention.</li>
+<li>Kong et al. (2020), <em>HiFi-GAN</em> — the vocoder that made neural TTS practical; multi-resolution STFT loss.</li>
+<li>Zeghidour et al. (2021), <em>LEAF: a Learnable Frontend for Audio Classification</em> — the "is mel optimal?" question, answered empirically.</li>
+<li>Défossez et al. (2022), <em>High Fidelity Neural Audio Compression</em> (EnCodec) — the bridge from spectrograms to discrete tokens and LLM-style TTS.</li>
+</ol>
+<h3 id="245-projects-that-turn-understanding-into-evidence">24.5 Projects that turn understanding into evidence</h3>
+<p>Each is buildable on one GPU (or a laptop for the first three), and each produces something you can show — a repo, a demo, a plot in a blog post:</p>
+<ol>
+<li><strong>Reimplement the STFT and mel filterbank from scratch in NumPy</strong>, verify against torchaudio to 1e-5. (You now truly own sections 13–17.)</li>
+<li><strong>The bandwidth detective</strong>: a script that takes any audio file and reports its <em>effective</em> bandwidth (where energy stops) versus its nominal Nyquist. Run it on a public dataset; you will find upsampled audio.</li>
+<li><strong>Griffin-Lim study</strong>: quality (PESQ/UTMOS) vs. iterations vs. <code>n_fft</code> on 50 LJSpeech clips; plot the curves. A small, complete empirical paper.</li>
+<li><strong>Train HiFi-GAN on LJSpeech</strong> and A/B it against Griffin-Lim with a 10-person listening test. First real vocoder, first real MOS.</li>
+<li><strong>Mel ablation</strong>: train the same small vocoder with 40 / 60 / 80 / 100 mels, and with <code>fmax</code> 8k vs 11k. Report MOS proxy vs. parameter count. Publishable as a workshop paper if done carefully.</li>
+<li><strong>Learnable front-end</strong>: swap the mel filterbank in a keyword-spotting model for a LEAF-style learnable one; plot where the learned filters end up.</li>
+</ol>
+<h3 id="246-what-audio-companies-actually-hire-for">24.6 What audio companies actually hire for</h3>
+<p>Across TTS startups, voice-assistant teams, and speech-API companies, the recurring interview themes are: (1) <em>explain the STFT → mel → vocoder pipeline and its failure modes</em> (this document); (2) <em>debug a "sounds wrong" report</em> — the mel-contract bug of section 17 is a classic interview problem; (3) <em>reason about latency</em> — frames per second, receptive field, streaming vs. offline; (4) <em>evaluate properly</em> — know why MOS beats loss and how to run a listening test; (5) <em>data hygiene</em> — sampling-rate audits, silence trimming, loudness normalization (LUFS), speaker leakage between train and test. If you can do the six projects above, you can answer all five.</p>
+<blockquote class="callout takeaway"><p><span class="callout-label">Key takeaway</span>The fundamentals are not a prerequisite you finish and leave behind; they are the debugging toolkit you use every day. Every "the model sounds weird" ticket in an audio company is resolved by someone who can look at a spectrogram and immediately see aliasing, a bandwidth ceiling, a mel mismatch, or a phase artifact. Become that person first; the research follows.</p>
+</blockquote>
+<hr />
 <h2 id="sources-further-learning">Sources &amp; further learning</h2>
 <ul>
 <li>Video these notes accompany: <a href="https://www.youtube.com/watch?v=55QWsm1itKo">Intro to Audio Processing for Deep Learning</a></li>
@@ -1174,5 +1467,575 @@ wave   = T.GriffinLim(n_fft=1024, hop_length=512, n_iter=100)(linear)
 <li>Griffin &amp; Lim (1984), <em>Signal Estimation from Modified Short-Time Fourier Transform</em></li>
 </ul>
 </main>
+</div>
+<div id="lightbox"><img alt=""></div>
+<button class="tbtn" id="totop">↑ top</button>
+
+<script>
+/* Interactive widgets for the audio-fundamentals notes.
+ * Vanilla JS, no dependencies. Each widget is a function (container) => void,
+ * registered in WIDGETS and mounted on <div class="widget" data-widget="name">.
+ * Inlined into the HTML by scripts/build_html_notes.py.
+ */
+(function () {
+  "use strict";
+
+  /* ───────────────────────── core helpers ───────────────────────── */
+
+  const PALETTE = {
+    bg: "#0b0e14", grid: "#1f2533", axis: "#4b5468", text: "#c8cedb",
+    blue: "#7aa2f7", green: "#9ece6a", orange: "#ff9e64", red: "#f7768e",
+    purple: "#bb9af7", yellow: "#e0af68", cyan: "#7dcfff",
+  };
+
+  function h(tag, attrs = {}, children = []) {
+    const e = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (k === "class") e.className = v;
+      else if (k === "html") e.innerHTML = v;
+      else if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
+      else e.setAttribute(k, v);
+    }
+    for (const c of [].concat(children)) {
+      if (c == null) continue;
+      e.appendChild(typeof c === "string" ? document.createTextNode(c) : c);
+    }
+    return e;
+  }
+
+  function slider(parent, { label, min, max, step, value, fmt = (v) => v }, onChange) {
+    const out = h("span", { class: "w-val" }, fmt(value));
+    const input = h("input", { type: "range", min, max, step, value });
+    const row = h("label", { class: "w-slider" }, [h("span", { class: "w-label" }, label), input, out]);
+    parent.appendChild(row);
+    input.addEventListener("input", () => {
+      out.textContent = fmt(parseFloat(input.value));
+      onChange(parseFloat(input.value));
+    });
+    return { get: () => parseFloat(input.value), set: (v) => { input.value = v; out.textContent = fmt(v); } };
+  }
+
+  function toggle(parent, label, checked, onChange) {
+    const input = h("input", { type: "checkbox" });
+    input.checked = checked;
+    input.addEventListener("change", () => onChange(input.checked));
+    parent.appendChild(h("label", { class: "w-toggle" }, [input, h("span", {}, label)]));
+    return () => input.checked;
+  }
+
+  function button(parent, label, onClick, cls = "") {
+    const b = h("button", { class: "w-btn " + cls, onclick: onClick }, label);
+    parent.appendChild(b);
+    return b;
+  }
+
+  function makeCanvas(parent, height) {
+    const cv = h("canvas", { class: "w-canvas" });
+    parent.appendChild(cv);
+    const ctx = cv.getContext("2d");
+    function size() {
+      const dpr = window.devicePixelRatio || 1;
+      const w = cv.clientWidth || parent.clientWidth || 600;
+      cv.width = Math.round(w * dpr);
+      cv.height = Math.round(height * dpr);
+      cv.style.height = height + "px";
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      return { W: w, H: height };
+    }
+    return { cv, ctx, size };
+  }
+
+  function clear(ctx, W, H) {
+    ctx.fillStyle = PALETTE.bg;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  /* Plot a polyline given data arrays and axis ranges into rect {x,y,w,h}. */
+  function plotLine(ctx, xs, ys, rect, range, color, width = 1.6, dash = []) {
+    const { x0, x1, y0, y1 } = range;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(rect.x, rect.y, rect.w, rect.h);
+    ctx.clip();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.setLineDash(dash);
+    ctx.beginPath();
+    for (let i = 0; i < xs.length; i++) {
+      const px = rect.x + ((xs[i] - x0) / (x1 - x0)) * rect.w;
+      const py = rect.y + rect.h - ((ys[i] - y0) / (y1 - y0)) * rect.h;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function axes(ctx, rect, range, { xlabel = "", ylabel = "", xticks = 5, yticks = 4, xfmt = (v) => v, yfmt = (v) => v } = {}) {
+    const { x0, x1, y0, y1 } = range;
+    ctx.save();
+    ctx.strokeStyle = PALETTE.grid;
+    ctx.lineWidth = 1;
+    ctx.fillStyle = PALETTE.text;
+    ctx.font = "11px ui-monospace, Menlo, monospace";
+    ctx.textAlign = "center";
+    for (let i = 0; i <= xticks; i++) {
+      const v = x0 + (i / xticks) * (x1 - x0);
+      const px = rect.x + (i / xticks) * rect.w;
+      ctx.beginPath(); ctx.moveTo(px, rect.y); ctx.lineTo(px, rect.y + rect.h); ctx.stroke();
+      ctx.fillText(xfmt(v), px, rect.y + rect.h + 14);
+    }
+    ctx.textAlign = "right";
+    for (let i = 0; i <= yticks; i++) {
+      const v = y0 + (i / yticks) * (y1 - y0);
+      const py = rect.y + rect.h - (i / yticks) * rect.h;
+      ctx.beginPath(); ctx.moveTo(rect.x, py); ctx.lineTo(rect.x + rect.w, py); ctx.stroke();
+      ctx.fillText(yfmt(v), rect.x - 6, py + 4);
+    }
+    ctx.strokeStyle = PALETTE.axis;
+    ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
+    ctx.textAlign = "center";
+    ctx.fillStyle = PALETTE.text;
+    if (xlabel) ctx.fillText(xlabel, rect.x + rect.w / 2, rect.y + rect.h + 28);
+    if (ylabel) {
+      ctx.save(); ctx.translate(rect.x - 44, rect.y + rect.h / 2); ctx.rotate(-Math.PI / 2);
+      ctx.fillText(ylabel, 0, 0); ctx.restore();
+    }
+    ctx.restore();
+  }
+
+  function title(ctx, text, x, y, color = PALETTE.text) {
+    ctx.save(); ctx.fillStyle = color; ctx.font = "bold 12px -apple-system, sans-serif";
+    ctx.textAlign = "left"; ctx.fillText(text, x, y); ctx.restore();
+  }
+
+  /* In-place iterative radix-2 FFT. re/im are Float64Array of power-of-2 length. */
+  function fft(re, im) {
+    const n = re.length;
+    for (let i = 1, j = 0; i < n; i++) {
+      let bit = n >> 1;
+      for (; j & bit; bit >>= 1) j ^= bit;
+      j ^= bit;
+      if (i < j) { [re[i], re[j]] = [re[j], re[i]]; [im[i], im[j]] = [im[j], im[i]]; }
+    }
+    for (let len = 2; len <= n; len <<= 1) {
+      const ang = -2 * Math.PI / len, wr = Math.cos(ang), wi = Math.sin(ang);
+      for (let i = 0; i < n; i += len) {
+        let cr = 1, ci = 0;
+        for (let j = 0; j < len / 2; j++) {
+          const ur = re[i + j], ui = im[i + j];
+          const vr = re[i + j + len / 2] * cr - im[i + j + len / 2] * ci;
+          const vi = re[i + j + len / 2] * ci + im[i + j + len / 2] * cr;
+          re[i + j] = ur + vr; im[i + j] = ui + vi;
+          re[i + j + len / 2] = ur - vr; im[i + j + len / 2] = ui - vi;
+          const t = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = t;
+        }
+      }
+    }
+  }
+
+  function magnitudeSpectrum(signal) {
+    let n = 1; while (n < signal.length) n <<= 1;
+    const re = new Float64Array(n), im = new Float64Array(n);
+    re.set(signal);
+    fft(re, im);
+    const half = n / 2 + 1, mag = new Float64Array(half);
+    for (let k = 0; k < half; k++) mag[k] = Math.hypot(re[k], im[k]) / (signal.length / 2);
+    return mag;
+  }
+
+  /* Inferno-like colormap, v in [0,1]. */
+  function cmap(v) {
+    v = Math.min(1, Math.max(0, v));
+    const stops = [[0, 0, 4], [40, 11, 84], [101, 21, 110], [159, 42, 99], [212, 72, 66], [245, 125, 21], [250, 193, 39], [252, 255, 164]];
+    const p = v * (stops.length - 1), i = Math.floor(p), f = p - i;
+    const a = stops[i], b = stops[Math.min(i + 1, stops.length - 1)];
+    return `rgb(${a[0] + (b[0] - a[0]) * f | 0},${a[1] + (b[1] - a[1]) * f | 0},${a[2] + (b[2] - a[2]) * f | 0})`;
+  }
+
+  function heatmap(ctx, matrix, rect, vmin, vmax) {
+    const rows = matrix.length, cols = matrix[0].length;
+    const cw = rect.w / cols, ch = rect.h / rows;
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        ctx.fillStyle = cmap((matrix[r][c] - vmin) / (vmax - vmin));
+        ctx.fillRect(rect.x + c * cw, rect.y + rect.h - (r + 1) * ch, Math.ceil(cw), Math.ceil(ch));
+      }
+    }
+    ctx.strokeStyle = PALETTE.axis;
+    ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
+  }
+
+  function readout(parent) {
+    const r = h("div", { class: "w-readout" });
+    parent.appendChild(r);
+    return (html) => { r.innerHTML = html; };
+  }
+
+  function frame(container, titleText, help) {
+    container.innerHTML = "";
+    container.appendChild(h("div", { class: "w-title" }, [h("span", { class: "w-badge" }, "interactive"), titleText]));
+    if (help) container.appendChild(h("p", { class: "w-help" }, help));
+    const controls = h("div", { class: "w-controls" });
+    const body = h("div", { class: "w-body" });
+    container.appendChild(controls);
+    container.appendChild(body);
+    return { controls, body };
+  }
+
+  const fmt = {
+    hz: (v) => `${(+v).toFixed(v < 10 ? 1 : 0)} Hz`,
+    int: (v) => `${Math.round(v)}`,
+    f2: (v) => (+v).toFixed(2),
+    pct: (v) => `${Math.round(v * 100)}%`,
+  };
+
+  const WIDGETS = {};
+
+  /* ───────────────────────── 1. sine explorer ───────────────────────── */
+  WIDGETS["sine-explorer"] = function (container) {
+    const { controls, body } = frame(container, "Sine wave explorer — amplitude, frequency, phase",
+      "Drag the sliders and watch how each symbol in y(t) = A·sin(2πft + φ) changes the wave. Count the cycles in one second.");
+    const { ctx, size } = makeCanvas(body, 240);
+    const out = readout(body);
+    let A = 0.8, f = 3, phi = 0;
+    const draw = () => {
+      const { W, H } = size(); clear(ctx, W, H);
+      const rect = { x: 50, y: 20, w: W - 70, h: H - 60 };
+      const range = { x0: 0, x1: 1, y0: -1.1, y1: 1.1 };
+      axes(ctx, rect, range, { xlabel: "time (seconds)", ylabel: "amplitude", xfmt: (v) => v.toFixed(2), yfmt: (v) => v.toFixed(1) });
+      const N = 800, xs = [], ys = [];
+      for (let i = 0; i <= N; i++) { const t = i / N; xs.push(t); ys.push(A * Math.sin(2 * Math.PI * f * t + phi)); }
+      plotLine(ctx, xs, ys, rect, range, PALETTE.blue, 2);
+      // mark peaks to make cycle counting easy
+      ctx.fillStyle = PALETTE.orange;
+      for (let k = 0; k < f + 1; k++) {
+        const tPeak = ((Math.PI / 2 - phi) / (2 * Math.PI) + k) / f;
+        if (tPeak >= 0 && tPeak <= 1) {
+          const px = rect.x + tPeak * rect.w, py = rect.y + rect.h - ((A + 1.1) / 2.2) * rect.h;
+          ctx.beginPath(); ctx.arc(px, py, 4, 0, 2 * Math.PI); ctx.fill();
+        }
+      }
+      out(`<b>y(t) = ${A.toFixed(2)} · sin(2π · ${f.toFixed(1)} · t + ${phi.toFixed(2)})</b><br>
+           Cycles in one second: <b>${f.toFixed(1)}</b> (orange dots = peaks) &nbsp;·&nbsp; period T = 1/f = <b>${(1 / f).toFixed(3)} s</b>
+           &nbsp;·&nbsp; ${f < 20 ? "below 20 Hz you would feel this as vibration, not hear it" : "audible"}`);
+    };
+    slider(controls, { label: "A (amplitude)", min: 0, max: 1, step: 0.01, value: A, fmt: fmt.f2 }, (v) => { A = v; draw(); });
+    slider(controls, { label: "f (frequency)", min: 0.5, max: 12, step: 0.5, value: f, fmt: fmt.hz }, (v) => { f = v; draw(); });
+    slider(controls, { label: "φ (phase)", min: 0, max: 6.28, step: 0.01, value: phi, fmt: (v) => `${v.toFixed(2)} rad` }, (v) => { phi = v; draw(); });
+    draw(); window.addEventListener("resize", draw);
+  };
+
+  /* ───────────────────────── 2. sampling & aliasing ───────────────────────── */
+  WIDGETS["sampling-aliasing"] = function (container) {
+    const { controls, body } = frame(container, "Sampling & aliasing — the spinning-fan illusion",
+      "The blue wave is the real sound. Dots are what the microphone records at the chosen sampling rate. The dashed orange wave is the frequency a computer would *infer* from the dots alone. Push the sampling rate below 2·f and watch the alias appear.");
+    const { ctx, size } = makeCanvas(body, 250);
+    const out = readout(body);
+    let f = 8, fs = 30;
+    const draw = () => {
+      const { W, H } = size(); clear(ctx, W, H);
+      const rect = { x: 50, y: 20, w: W - 70, h: H - 60 };
+      const range = { x0: 0, x1: 1, y0: -1.2, y1: 1.2 };
+      axes(ctx, rect, range, { xlabel: "time (seconds)", xfmt: (v) => v.toFixed(2), yfmt: (v) => v.toFixed(1) });
+      const N = 1200, xs = [], ys = [];
+      for (let i = 0; i <= N; i++) { const t = i / N; xs.push(t); ys.push(Math.sin(2 * Math.PI * f * t)); }
+      plotLine(ctx, xs, ys, rect, range, PALETTE.blue, 1.5);
+      const nyq = fs / 2;
+      // alias frequency: fold f into [0, fs/2]
+      let fa = Math.abs(f - Math.round(f / fs) * fs);
+      const aliased = f > nyq;
+      if (aliased) {
+        const ya = xs.map((t) => Math.sin(2 * Math.PI * fa * t) * (Math.sin(2 * Math.PI * f * (0)) >= 0 ? 1 : 1));
+        // choose sign so alias passes through the samples: sin(2π f t_k) vs sin(2π fa t_k)
+        const t0 = 1 / fs; const s = Math.sign(Math.sin(2 * Math.PI * f * t0) * Math.sin(2 * Math.PI * fa * t0)) || 1;
+        plotLine(ctx, xs, ya.map((v) => s * v), rect, range, PALETTE.orange, 2, [6, 4]);
+      }
+      ctx.fillStyle = PALETTE.yellow;
+      for (let k = 0; k * (1 / fs) <= 1; k++) {
+        const t = k / fs, y = Math.sin(2 * Math.PI * f * t);
+        const px = rect.x + t * rect.w, py = rect.y + rect.h - ((y + 1.2) / 2.4) * rect.h;
+        ctx.beginPath(); ctx.arc(px, py, 4, 0, 2 * Math.PI); ctx.fill();
+      }
+      out(`Sampling rate fs = <b>${fs}</b> samples/s → Nyquist limit fs/2 = <b>${nyq}</b> Hz &nbsp;·&nbsp; true frequency f = <b>${f} Hz</b> &nbsp;·&nbsp; samples per cycle = <b>${(fs / f).toFixed(2)}</b><br>
+           ${aliased
+          ? `<span class="bad">ALIASED</span> — f &gt; fs/2. The dots are indistinguishable from a <b>${fa.toFixed(1)} Hz</b> wave (orange). The recording now *contains* a frequency that never existed.`
+          : `<span class="good">SAFE</span> — f &lt; fs/2, at least 2 samples per cycle. The dots uniquely determine the blue wave.`}`);
+    };
+    slider(controls, { label: "true frequency f", min: 1, max: 30, step: 1, value: f, fmt: fmt.hz }, (v) => { f = v; draw(); });
+    slider(controls, { label: "sampling rate fs", min: 4, max: 80, step: 1, value: fs, fmt: (v) => `${v} samples/s` }, (v) => { fs = v; draw(); });
+    draw(); window.addEventListener("resize", draw);
+  };
+
+  /* ───────────────────────── 3. Fourier mixer ───────────────────────── */
+  WIDGETS["fourier-mixer"] = function (container) {
+    const { controls, body } = frame(container, "Fourier mixer — un-mixing the paint, live",
+      "Mix up to three sinusoids. The left plot is what you would record (the messy sum); the right plot is the FFT magnitude — it un-mixes the recipe back into spikes. Set an amplitude to 0 to remove a component.");
+    const { ctx, size } = makeCanvas(body, 260);
+    const out = readout(body);
+    const comps = [{ f: 5, a: 1 }, { f: 20, a: 0.6 }, { f: 40, a: 0.3 }];
+    const FS = 256, N = 512; // 2 s at 256 samples/s → 0.5 Hz bins, Nyquist 128
+    const draw = () => {
+      const { W, H } = size(); clear(ctx, W, H);
+      const half = (W - 90) / 2;
+      const r1 = { x: 45, y: 20, w: half, h: H - 65 }, r2 = { x: 45 + half + 40, y: 20, w: half, h: H - 65 };
+      const sig = new Float64Array(N), xs = [];
+      for (let n = 0; n < N; n++) { const t = n / FS; xs.push(t); let v = 0; for (const c of comps) v += c.a * Math.sin(2 * Math.PI * c.f * t); sig[n] = v; }
+      const amax = Math.max(1, comps.reduce((s, c) => s + c.a, 0));
+      const rng1 = { x0: 0, x1: 1, y0: -amax, y1: amax };
+      axes(ctx, r1, rng1, { xlabel: "time (s) — what you record", xfmt: (v) => v.toFixed(2), yfmt: (v) => v.toFixed(1) });
+      plotLine(ctx, xs, Array.from(sig), r1, rng1, PALETTE.blue, 1.4);
+      const mag = magnitudeSpectrum(sig);
+      const freqs = Array.from(mag, (_, k) => k * FS / N);
+      const rng2 = { x0: 0, x1: 64, y0: 0, y1: Math.max(0.1, Math.max(...mag) * 1.1) };
+      axes(ctx, r2, rng2, { xlabel: "frequency (Hz) — FFT magnitude", xticks: 8, xfmt: (v) => v.toFixed(0), yfmt: (v) => v.toFixed(1) });
+      // draw spectrum as bars
+      ctx.fillStyle = PALETTE.green;
+      for (let k = 0; k < mag.length && freqs[k] <= 64; k++) {
+        const px = r2.x + (freqs[k] / 64) * r2.w, bh = (mag[k] / rng2.y1) * r2.h;
+        ctx.fillRect(px - 1, r2.y + r2.h - bh, 2.5, bh);
+      }
+      title(ctx, "time domain", r1.x, 14); title(ctx, "frequency domain", r2.x, 14);
+      const active = comps.filter((c) => c.a > 0).map((c) => `${c.f} Hz (A=${c.a.toFixed(2)})`).join(" + ");
+      out(`Recipe: <b>${active || "silence"}</b> → the FFT shows exactly one spike per ingredient, at the right frequency, with height ∝ amplitude.<br>
+           <span class="muted">Sampled at ${FS} samples/s for 2 s → ${N} samples → frequency resolution ${(FS / N).toFixed(2)} Hz per bin, Nyquist ${FS / 2} Hz. Note: the FFT cannot tell you <i>when</i> each tone played — only <i>that</i> it played.</span>`);
+    };
+    comps.forEach((c, i) => {
+      const row = h("div", { class: "w-group" }, h("span", { class: "w-group-title" }, `sine ${i + 1}`));
+      controls.appendChild(row);
+      slider(row, { label: "f", min: 1, max: 60, step: 1, value: c.f, fmt: fmt.hz }, (v) => { c.f = v; draw(); });
+      slider(row, { label: "A", min: 0, max: 1, step: 0.05, value: c.a, fmt: fmt.f2 }, (v) => { c.a = v; draw(); });
+    });
+    draw(); window.addEventListener("resize", draw);
+  };
+
+  /* ───────────────────────── 4. STFT / spectrogram explorer ───────────────────────── */
+  WIDGETS["stft-explorer"] = function (container) {
+    const { controls, body } = frame(container, "STFT explorer — the time–frequency trade-off",
+      "A synthetic 1-second clip: a rising chirp, a steady tone, and two sharp clicks. Change the window size and watch detail move between the axes: long windows sharpen frequency (thin lines) but smear time (fat clicks); short windows do the reverse.");
+    const { ctx, size } = makeCanvas(body, 300);
+    const out = readout(body);
+    const FS = 8000, LEN = 8192;
+    const sig = new Float64Array(LEN);
+    for (let n = 0; n < LEN; n++) {
+      const t = n / FS;
+      sig[n] = 0.6 * Math.sin(2 * Math.PI * (300 + 1500 * t) * t) + 0.4 * Math.sin(2 * Math.PI * 1200 * t);
+    }
+    for (const c of [0.30, 0.31, 0.72]) { const n0 = Math.floor(c * FS); for (let k = 0; k < 8; k++) sig[n0 + k] += 1.2 * (k % 2 ? -1 : 1); }
+    let win = 256;
+    const compute = () => {
+      const hop = win / 4, frames = Math.floor((LEN - win) / hop), bins = win / 2 + 1;
+      const S = Array.from({ length: bins }, () => new Float64Array(frames));
+      const re = new Float64Array(win), im = new Float64Array(win);
+      const hann = Float64Array.from({ length: win }, (_, n) => 0.5 - 0.5 * Math.cos(2 * Math.PI * n / win));
+      let vmax = -1e9;
+      for (let t = 0; t < frames; t++) {
+        for (let n = 0; n < win; n++) { re[n] = sig[t * hop + n] * hann[n]; im[n] = 0; }
+        fft(re, im);
+        for (let k = 0; k < bins; k++) { const db = 20 * Math.log10(Math.hypot(re[k], im[k]) / win + 1e-6); S[k][t] = db; if (db > vmax) vmax = db; }
+      }
+      return { S, frames, bins, hop, vmax };
+    };
+    const draw = () => {
+      const { W, H } = size(); clear(ctx, W, H);
+      const rect = { x: 55, y: 20, w: W - 75, h: H - 60 };
+      const { S, frames, bins, hop, vmax } = compute();
+      heatmap(ctx, S, rect, vmax - 70, vmax);
+      axes(ctx, rect, { x0: 0, x1: LEN / FS, y0: 0, y1: FS / 2 }, { xlabel: "time (s)", ylabel: "frequency (Hz)", xfmt: (v) => v.toFixed(2), yfmt: (v) => v.toFixed(0) });
+      out(`Window = <b>${win} samples</b> = <b>${(win / FS * 1000).toFixed(1)} ms</b> &nbsp;·&nbsp; hop = ${hop} (75% overlap) &nbsp;·&nbsp;
+           frequency bins = win/2+1 = <b>${bins}</b> (<b>${(FS / win).toFixed(1)} Hz</b> per bin) &nbsp;·&nbsp; time frames = <b>${frames}</b><br>
+           <span class="muted">${win <= 64 ? "Tiny window: the clicks at 0.30/0.31 s are razor sharp and separate, but the tone and chirp are thick smears — you can barely tell their frequencies."
+          : win >= 1024 ? "Huge window: the 1200 Hz tone is a hairline and the chirp is crisp, but the two clicks 10 ms apart have merged into one wide blob — time is lost."
+            : "Balanced: both the chirp/tone and the clicks are reasonably resolved. This is the region real speech pipelines live in (25–64 ms)."}</span>`);
+    };
+    const sel = h("select", { class: "w-select" });
+    [32, 64, 128, 256, 512, 1024, 2048].forEach((v) => sel.appendChild(h("option", { value: v }, `${v} samples (${(v / FS * 1000).toFixed(1)} ms)`)));
+    sel.value = win;
+    sel.addEventListener("change", () => { win = parseInt(sel.value, 10); draw(); });
+    controls.appendChild(h("label", { class: "w-slider" }, [h("span", { class: "w-label" }, "window size (n_fft)"), sel]));
+    draw(); window.addEventListener("resize", draw);
+  };
+
+  /* ───────────────────────── 5. mel scale ───────────────────────── */
+  WIDGETS["mel-scale"] = function (container) {
+    const { controls, body } = frame(container, "Mel scale — how your ear warps the frequency axis",
+      "Move the Hz slider and see where it lands on the mel axis. Then compare a +200 Hz step at low vs high frequency: same Hz, very different perceived change. The ticks below the curve show where n_mels filters would be centered — dense at the bottom, sparse at the top.");
+    const { ctx, size } = makeCanvas(body, 280);
+    const out = readout(body);
+    const hz2mel = (f) => 2595 * Math.log10(1 + f / 700), mel2hz = (m) => 700 * (Math.pow(10, m / 2595) - 1);
+    let fhz = 1000, nmels = 40;
+    const FMAX = 8000;
+    const draw = () => {
+      const { W, H } = size(); clear(ctx, W, H);
+      const rect = { x: 60, y: 20, w: W - 80, h: H - 80 };
+      const range = { x0: 0, x1: FMAX, y0: 0, y1: hz2mel(FMAX) };
+      axes(ctx, rect, range, { xlabel: "frequency (Hz)", ylabel: "mel", xticks: 8, xfmt: (v) => v.toFixed(0), yfmt: (v) => v.toFixed(0) });
+      const xs = [], ys = [];
+      for (let f = 0; f <= FMAX; f += 20) { xs.push(f); ys.push(hz2mel(f)); }
+      plotLine(ctx, xs, ys, rect, range, PALETTE.blue, 2);
+      // linear reference
+      plotLine(ctx, [0, FMAX], [0, range.y1], rect, range, PALETTE.axis, 1, [4, 4]);
+      // marker
+      const m = hz2mel(fhz), px = rect.x + (fhz / FMAX) * rect.w, py = rect.y + rect.h - (m / range.y1) * rect.h;
+      ctx.strokeStyle = PALETTE.orange; ctx.setLineDash([3, 3]);
+      ctx.beginPath(); ctx.moveTo(px, rect.y + rect.h); ctx.lineTo(px, py); ctx.lineTo(rect.x, py); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = PALETTE.orange; ctx.beginPath(); ctx.arc(px, py, 5, 0, 2 * Math.PI); ctx.fill();
+      // mel filter centers as ticks along the bottom
+      ctx.fillStyle = PALETTE.green;
+      for (let i = 0; i <= nmels + 1; i++) {
+        const fc = mel2hz((i / (nmels + 1)) * range.y1);
+        const tx = rect.x + (fc / FMAX) * rect.w;
+        ctx.fillRect(tx, rect.y + rect.h + 32, 1.5, 8);
+      }
+      ctx.fillStyle = PALETTE.text; ctx.font = "11px sans-serif"; ctx.textAlign = "left";
+      ctx.fillText(`${nmels} mel filter centers (Hz axis)`, rect.x, rect.y + rect.h + 52);
+      const stepLo = hz2mel(fhz + 200) - m;
+      out(`<b>${fhz} Hz → ${m.toFixed(0)} mel</b> &nbsp;·&nbsp; a +200 Hz step from here is worth <b>${stepLo.toFixed(0)} mel</b>
+           (compare: 200→400 Hz = ${(hz2mel(400) - hz2mel(200)).toFixed(0)} mel, 6000→6200 Hz = ${(hz2mel(6200) - hz2mel(6000)).toFixed(0)} mel)<br>
+           <span class="muted">Below ~1 kHz the curve is nearly linear (the ear is sharp); above it flattens (the ear is dull). Dashed grey = what a linear axis would look like.</span>`);
+    };
+    slider(controls, { label: "frequency", min: 0, max: FMAX, step: 50, value: fhz, fmt: fmt.hz }, (v) => { fhz = v; draw(); });
+    slider(controls, { label: "n_mels", min: 8, max: 128, step: 8, value: nmels, fmt: fmt.int }, (v) => { nmels = v; draw(); });
+    draw(); window.addEventListener("resize", draw);
+  };
+
+  /* ───────────────────────── 6. dB explorer ───────────────────────── */
+  WIDGETS["db-explorer"] = function (container) {
+    const { controls, body } = frame(container, "Decibels — why a log scale is the only way to see (and learn) audio",
+      "Four sounds of very different loudness. On a linear scale everything except the loudest is invisible; in dB they are evenly spread. Drag the amplitude slider for the highlighted sound and watch both bars.");
+    const { ctx, size } = makeCanvas(body, 220);
+    const out = readout(body);
+    const items = [{ n: "loud vowel", a: 1.0 }, { n: "normal speech", a: 0.1 }, { n: "soft consonant", a: 0.003 }, { n: "room noise", a: 0.0001 }];
+    let user = 0.02;
+    const draw = () => {
+      const { W, H } = size(); clear(ctx, W, H);
+      const half = (W - 100) / 2;
+      const r1 = { x: 110, y: 20, w: half - 60, h: H - 50 }, r2 = { x: 110 + half + 20, y: 20, w: half - 60, h: H - 50 };
+      title(ctx, "linear amplitude (0 → 1)", r1.x, 14); title(ctx, "decibels (−100 → 0 dB)", r2.x, 14);
+      const all = items.concat([{ n: "your slider", a: user, hl: true }]);
+      const rowH = r1.h / all.length;
+      ctx.font = "11px sans-serif";
+      all.forEach((it, i) => {
+        const y = r1.y + i * rowH + 6, bh = rowH - 12;
+        ctx.fillStyle = it.hl ? PALETTE.orange : PALETTE.text; ctx.textAlign = "right"; ctx.fillText(it.n, r1.x - 8, y + bh / 2 + 4);
+        ctx.fillStyle = it.hl ? PALETTE.orange : PALETTE.blue;
+        ctx.fillRect(r1.x, y, Math.max(1, it.a * r1.w), bh);
+        const db = 20 * Math.log10(Math.max(it.a, 1e-5));
+        ctx.fillStyle = it.hl ? PALETTE.orange : PALETTE.green;
+        ctx.fillRect(r2.x, y, ((db + 100) / 100) * r2.w, bh);
+        ctx.fillStyle = PALETTE.text; ctx.textAlign = "left";
+        ctx.fillText(`${db.toFixed(1)} dB`, r2.x + ((db + 100) / 100) * r2.w + 6, y + bh / 2 + 4);
+      });
+      ctx.strokeStyle = PALETTE.axis; ctx.strokeRect(r1.x, r1.y, r1.w, r1.h); ctx.strokeRect(r2.x, r2.y, r2.w, r2.h);
+      const db = 20 * Math.log10(Math.max(user, 1e-5));
+      out(`amplitude <b>${user.toExponential(2)}</b> → <b>${db.toFixed(1)} dB</b> &nbsp;·&nbsp; rules of thumb: ×2 amplitude = +6 dB, ×10 = +20 dB, ×0.5 = −6 dB<br>
+           <span class="muted">On the linear side, "soft consonant" and "room noise" are both a hairline — a model trained with MSE on linear values could not tell them apart. In dB they are 30 dB (~30% of the range) apart. Your ear works in dB; so should your loss function.</span>`);
+    };
+    slider(controls, { label: "your amplitude (log slider)", min: -5, max: 0, step: 0.05, value: Math.log10(user), fmt: (v) => Math.pow(10, v).toExponential(2) }, (v) => { user = Math.pow(10, v); draw(); });
+    draw(); window.addEventListener("resize", draw);
+  };
+
+  /* ───────────────────────── 7. shape calculator ───────────────────────── */
+  WIDGETS["stft-shapes"] = function (container) {
+    const { controls, body } = frame(container, "Shape calculator — from parameters to tensor sizes",
+      "Type any configuration and see every derived number: samples, frames, bins, milliseconds, Hz per bin. This is the arithmetic you will do in your head for the rest of your audio career.");
+    const out = readout(body);
+    const p = { sr: 16000, dur: 3.4, nfft: 1024, hop: 512, nmels: 128 };
+    const num = (label, key, step) => {
+      const inp = h("input", { type: "number", value: p[key], step, class: "w-num" });
+      inp.addEventListener("input", () => { p[key] = parseFloat(inp.value) || 0; draw(); });
+      controls.appendChild(h("label", { class: "w-slider" }, [h("span", { class: "w-label" }, label), inp]));
+    };
+    num("sample_rate", "sr", 1000); num("duration (s)", "dur", 0.1); num("n_fft", "nfft", 64); num("hop_length", "hop", 32); num("n_mels", "nmels", 8);
+    const draw = () => {
+      const samples = Math.round(p.sr * p.dur), bins = Math.floor(p.nfft / 2) + 1, frames = 1 + Math.floor(samples / p.hop);
+      const ok = p.nmels <= bins;
+      out(`<table class="w-table">
+        <tr><td>samples</td><td><b>${samples.toLocaleString()}</b></td><td class="muted">sample_rate × duration</td></tr>
+        <tr><td>Nyquist (max frequency)</td><td><b>${(p.sr / 2).toLocaleString()} Hz</b></td><td class="muted">sample_rate / 2</td></tr>
+        <tr><td>window duration</td><td><b>${(p.nfft / p.sr * 1000).toFixed(1)} ms</b></td><td class="muted">n_fft / sample_rate</td></tr>
+        <tr><td>hop duration</td><td><b>${(p.hop / p.sr * 1000).toFixed(1)} ms</b></td><td class="muted">hop_length / sample_rate &nbsp;(overlap ${p.nfft ? Math.round((1 - p.hop / p.nfft) * 100) : 0}%)</td></tr>
+        <tr><td>linear frequency bins</td><td><b>${bins}</b></td><td class="muted">n_fft // 2 + 1</td></tr>
+        <tr><td>Hz per linear bin</td><td><b>${(p.sr / p.nfft).toFixed(2)} Hz</b></td><td class="muted">sample_rate / n_fft</td></tr>
+        <tr><td>time frames</td><td><b>${frames}</b></td><td class="muted">1 + samples // hop_length (center=True)</td></tr>
+        <tr><td>linear spectrogram shape</td><td><b>(${bins}, ${frames})</b></td><td class="muted">bins × frames</td></tr>
+        <tr><td>mel spectrogram shape</td><td><b>(${p.nmels}, ${frames})</b> ${ok ? "" : '<span class="bad">n_mels &gt; bins!</span>'}</td><td class="muted">n_mels × frames</td></tr>
+        <tr><td>compression vs waveform</td><td><b>${(samples / (p.nmels * frames)).toFixed(1)}×</b> fewer numbers</td><td class="muted">samples / (n_mels × frames)</td></tr>
+      </table>`);
+    };
+    draw();
+  };
+
+  /* ───────────────────────── mount ───────────────────────── */
+  function mountAll() {
+    document.querySelectorAll(".widget[data-widget]").forEach((el) => {
+      const fn = WIDGETS[el.dataset.widget];
+      if (fn) { try { fn(el); } catch (e) { el.innerHTML = `<p class="bad">widget error: ${e.message}</p>`; console.error(e); } }
+      else el.innerHTML = `<p class="muted">unknown widget: ${el.dataset.widget}</p>`;
+    });
+  }
+  window.NOTES_WIDGETS = WIDGETS;
+  window.NOTES_FFT = { fft, magnitudeSpectrum };
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", mountAll); else mountAll();
+})();
+
+</script>
+<script>
+(function () {
+  const KEY = "notes-progress-audio_processing_notes";
+  const state = JSON.parse(localStorage.getItem(KEY) || "{}");
+  const boxes = Array.from(document.querySelectorAll("aside input.done"));
+  const links = Array.from(document.querySelectorAll("aside li a"));
+  function save() { localStorage.setItem(KEY, JSON.stringify(state)); }
+  function refresh() {
+    let n = 0;
+    boxes.forEach(b => { const on = !!state[b.dataset.section]; b.checked = on; b.closest("a").classList.toggle("completed", on); if (on) n++; });
+    document.getElementById("pct").textContent = Math.round(100 * n / Math.max(1, boxes.length)) + "%";
+    document.getElementById("done-count").textContent = n;
+  }
+  boxes.forEach(b => b.addEventListener("click", e => { e.stopPropagation(); state[b.dataset.section] = b.checked; save(); refresh(); }));
+  document.getElementById("reset-btn").addEventListener("click", () => { for (const k in state) delete state[k]; save(); refresh(); });
+  refresh();
+
+  // theme
+  const themeKey = "notes-theme";
+  const applyTheme = t => { document.documentElement.dataset.theme = t; document.getElementById("theme-btn").textContent = t === "dark" ? "☀ light" : "☾ dark"; };
+  applyTheme(localStorage.getItem(themeKey) || "dark");
+  document.getElementById("theme-btn").addEventListener("click", () => { const t = document.documentElement.dataset.theme === "dark" ? "light" : "dark"; localStorage.setItem(themeKey, t); applyTheme(t); });
+
+  // mobile menu
+  const sidebar = document.getElementById("sidebar");
+  document.getElementById("menu-btn").addEventListener("click", () => sidebar.classList.toggle("open"));
+  sidebar.querySelectorAll("a").forEach(a => a.addEventListener("click", () => sidebar.classList.remove("open")));
+
+  // scroll spy + progress + back-to-top
+  const headings = Array.from(document.querySelectorAll("main h2[id]"));
+  const totop = document.getElementById("totop");
+  function onScroll() {
+    const y = window.scrollY, h = document.documentElement.scrollHeight - window.innerHeight;
+    document.getElementById("progress").style.width = (100 * y / Math.max(1, h)) + "%";
+    totop.style.display = y > 600 ? "block" : "none";
+    let current = headings[0];
+    for (const hd of headings) { if (hd.getBoundingClientRect().top <= 120) current = hd; }
+    links.forEach(a => a.classList.toggle("active", current && a.dataset.target === current.id));
+    const act = document.querySelector("aside a.active");
+    if (act) { const r = act.getBoundingClientRect(), s = sidebar.getBoundingClientRect(); if (r.top < s.top + 60 || r.bottom > s.bottom - 60) act.scrollIntoView({ block: "center" }); }
+  }
+  window.addEventListener("scroll", onScroll, { passive: true }); onScroll();
+  totop.addEventListener("click", () => window.scrollTo({ top: 0 }));
+
+  // code: highlight + copy buttons
+  if (window.hljs) document.querySelectorAll("pre code").forEach(el => hljs.highlightElement(el));
+  document.querySelectorAll("pre").forEach(pre => {
+    const b = document.createElement("button"); b.className = "copy"; b.textContent = "copy";
+    b.addEventListener("click", () => { navigator.clipboard.writeText(pre.querySelector("code").innerText).then(() => { b.textContent = "copied"; setTimeout(() => b.textContent = "copy", 1200); }); });
+    pre.appendChild(b);
+  });
+
+  // image lightbox
+  const lb = document.getElementById("lightbox"), lbImg = lb.querySelector("img");
+  document.querySelectorAll("main img").forEach(img => img.addEventListener("click", () => { lbImg.src = img.src; lb.style.display = "flex"; }));
+  lb.addEventListener("click", () => lb.style.display = "none");
+})();
+</script>
 </body>
 </html>

@@ -98,8 +98,8 @@ Models plug into this pipeline at two points:
 
 ```
 ├── notes/
-│   ├── audio_processing_notes.md      # Detailed learner notes — 22 sections of deep-dive explanations
-│   └── audio_processing_notes.html    # Same notes as a styled standalone web page (open in any browser)
+│   ├── audio_processing_notes.md      # Detailed learner notes — 24 sections of deep-dive explanations
+│   └── audio_processing_notes.html    # ★ INTERACTIVE version: 7 live widgets, quizzes, progress tracker (open in any browser)
 ├── notebooks/
 │   └── intro_to_audio_processing.ipynb  # Follow-along notebook for the video (executed, outputs included)
 ├── src/
@@ -111,7 +111,8 @@ Models plug into this pipeline at two points:
 │   └── mel_reconstruction_demo.py     # Demo 4: mel scale curve, mel spectrogram, InverseMelScale + Griffin-Lim
 ├── scripts/
 │   ├── download_sample_audio.py       # Fetches the 16 kHz speech sample the notebook/demos use
-│   └── build_html_notes.py            # Regenerates the HTML notes from the markdown source
+│   ├── build_html_notes.py            # Regenerates the interactive HTML notes from the markdown source
+│   └── notes_widgets.js               # The interactive widgets (vanilla JS canvas, inlined into the HTML)
 ├── assets/                            # Committed copies of the demo plots (embedded in README + notes)
 ├── outputs/                           # Freshly generated plots + reconstructed audio (gitignored, created on demand)
 ├── requirements.txt
@@ -262,7 +263,15 @@ It has been executed end to end and ships with its outputs, so it's readable on 
 
 ## The notes
 
-`notes/audio_processing_notes.md` (also as a styled standalone page: `notes/audio_processing_notes.html`) is the deep-dive companion — 22 sections that slow down exactly where the video speeds up:
+`notes/audio_processing_notes.md` is the deep-dive companion — 24 sections that slow down exactly where the video speeds up. **Open `notes/audio_processing_notes.html` in a browser for the interactive version**, which adds:
+
+- **7 live widgets** (no install, plain JS): a sine explorer (A, f, φ sliders), a sampling/aliasing simulator (push fs below 2f and watch the alias appear), a Fourier mixer (mix three tones, see the FFT un-mix them live), a shape calculator (any `n_fft`/`hop`/`n_mels` → every tensor dimension), an STFT explorer (change the window and watch detail move between axes), a dB explorer, and a mel-scale explorer.
+- **Callout boxes** throughout — *Key takeaway*, *Researcher's corner* (open problems and the papers), *Industry corner* (what production audio/TTS teams actually do), *Common mistake*, *Try it*.
+- **Self-test quizzes** with hidden answers (click to reveal), including industry-debugging and research-design questions.
+- A sidebar with scroll-spy, per-section "done" checkboxes and a progress bar (saved in your browser), dark/light theme, copy buttons on code, click-to-zoom figures.
+- **§24 — From learner to researcher / builder**: the design-review checklist, evaluation metrics (MOS, PESQ, UTMOS, WER…), datasets, a reading list, six portfolio projects, and what audio companies interview for.
+
+The Markdown covers:
 
 - The **samples/second vs cycles/second** confusion, resolved with the spinning-fan analogy
 - The FFT formula unpacked term by term — why multiplying by a "probe wave" and summing acts as a similarity test for each frequency
@@ -273,7 +282,7 @@ It has been executed end to end and ships with its outputs, so it's readable on 
 - **Griffin-Lim** explained as a constrained back-and-forth projection
 - A **torchaudio cheat sheet**, six common pitfalls, self-test questions, and a full **parameter glossary** (`n_fft`, `hop_length`, `n_mels`, …)
 
-Rebuild the HTML after editing the markdown with `python scripts/build_html_notes.py`.
+Rebuild the HTML after editing the markdown with `python scripts/build_html_notes.py`. Widgets are mounted where the markdown contains `<!-- widget: name -->` (invisible on GitHub); callouts are ordinary blockquotes starting with `**Key takeaway**`, `**Researcher's corner**`, etc.; quizzes are `<details>` blocks, so everything degrades gracefully in plain Markdown.
 
 ---
 
